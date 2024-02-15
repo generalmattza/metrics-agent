@@ -120,7 +120,7 @@ def main():
         server_address=server_address,
     )
 
-    # Set up an Agent to retrieve data from the Arduino nodes
+    # # Set up an Agent to retrieve data from the Arduino nodes
     node_client = NodeSwarmClient(
         buffer=agent._input_buffer,
         update_interval=config["node_client"]["update_interval"],
@@ -129,14 +129,14 @@ def main():
     # Initialize html scraper
     scraper_agent = HTMLScraperAgent(agent._input_buffer)
 
-    config_webscraper = config["webscraper"]
-    scraper_address = config_webscraper["address"] + str(config_webscraper["port"])
+    config_scraper = config["html_scraper_agent"]
+    # scraper_address = "config/test.html"
 
     async def gather_data_from_agents():
         await asyncio.gather(
-            scraper_agent.do_work(
-                update_interval=config_webscraper["update_interval"],
-                server_address=scraper_address,
+            scraper_agent.do_work_periodically(
+                update_interval=config_scraper["update_interval"],
+                server_address=config_scraper["scrape_address"],
             ),
             node_client.request_data_periodically(),
         )
