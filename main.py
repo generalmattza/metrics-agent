@@ -14,12 +14,14 @@ import asyncio
 from custom_logging import setup_logger, ColoredLogFormatter
 from metrics_agent import MetricsAgent
 from fast_database_clients.fast_influxdb_client import FastInfluxDBClient
-from metrics_agent import (
+from metrics_agent.processors import (
     JSONReader,
     Formatter,
     TimeLocalizer,
     ExpandFields,
     TimePrecision,
+    RemoveOutliers,
+    Rename,
 )
 from html_scraper_agent import HTMLScraperAgent
 
@@ -92,7 +94,7 @@ def main():
 
     # Create a client for the agent to write data to a database
     database_client = FastInfluxDBClient.from_config_file(
-        config_file="config/influx_live.toml"
+        config_file="config/influx_test.toml"
     )
 
     # create the agent and assign it the client and desired processors
@@ -104,6 +106,8 @@ def main():
             TimePrecision(),
             ExpandFields(),
             Formatter(),
+            RemoveOutliers(),
+            Rename(),
         ],
         config=config["agent"],
     )
@@ -115,16 +119,16 @@ def main():
         config["server"]["port"],
     )
 
-    server_tcp = SimpleServerTCP(
-        output_buffer=agent._input_buffer,
-        server_address=server_address,
-    )
+    # server_tcp = SimpleServerTCP(
+    #     output_buffer=agent._input_buffer,
+    #     server_address=server_address,
+    # )
 
     # # Set up an Agent to retrieve data from the Arduino nodes
-    node_client = NodeSwarmClient(
-        buffer=agent._input_buffer,
-        update_interval=config["node_client"]["update_interval"],
-    )
+    # node_client = NodeSwarmClient(
+    #     buffer=agent._input_buffer,
+    #     update_interval=config["node_client"]["update_interval"],
+    # )
 
     # Initialize html scraper
     scraper_agent = HTMLScraperAgent(agent._input_buffer)
@@ -138,7 +142,7 @@ def main():
                 update_interval=config_scraper["update_interval"],
                 server_address=config_scraper["scrape_address"],
             ),
-            node_client.request_data_periodically(),
+            # node_client.request_data_periodically(),
         )
 
     asyncio.run(gather_data_from_agents())

@@ -31,7 +31,7 @@ dependencies = [
   "buffered @ git+https://github.com/davidson-engineering/buffered.git@v1.0.1",
   "network-simple @ git+https://github.com/davidson-engineering/network-simple.git@v1.0.4",
   "custom-logging @ git+https://github.com/davidson-engineering/python-custom-logging.git@v1.0.2",
-  "html-scraper-agent @ git+https://github.com/generalmattza/html-scraper-agent.git",
+  "html-scraper-agent @ git+https://github.com/generalmattza/html-scraper-agent.git@v0.0.2",
 ]
 
 # If a module, then use fetch version from src/module_name/__init__.py
