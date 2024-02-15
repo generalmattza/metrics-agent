@@ -175,8 +175,6 @@ class MetricsAgent:
             self._send_buffer.put(next(self._input_buffer))
             # self.session_stats.increment("metrics_processed")
 
-    from prometheus_client import start_http_server, Summary
-
     def send_to_database(self, metrics_to_send):
         # Send the metrics in the send buffer to the database
         if metrics_to_send:
