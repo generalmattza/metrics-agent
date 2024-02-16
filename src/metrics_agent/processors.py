@@ -289,7 +289,7 @@ class Rename(MetricsProcessor):
         metrics = self.rename_metrics(metrics, name_mapping)
         return metrics
 
-    def rename_metrics(metrics, name_mapping):
+    def rename_metrics(self, metrics, name_mapping):
         for metric in metrics:
             for field in metric["fields"]:
                 try:
@@ -297,8 +297,9 @@ class Rename(MetricsProcessor):
                 except KeyError:
                     # No database fieldname specified, use existing field name
                     logger.debug(
-                        f'No database fieldname specified for metric {metric["measurement"]}:{metric["fields"][k]}, use existing field name'
+                        f'No database fieldname specified for metric {metric["measurement"]}:{metric["fields"][field]}, use existing field name'
                     )
+        return metrics
 
 
 class RemoveOutliers(MetricsProcessor):

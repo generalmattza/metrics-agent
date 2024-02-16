@@ -1,7 +1,7 @@
 import asyncio
 from typing import Union
 from collections import deque
-
+from prometheus_client import Counter
 
 import logging
 
@@ -34,9 +34,6 @@ class EchoClientProtocol:
         logger.debug(f"Received: {data.decode()[:75]}...")
         self.on_data_received(data.decode())
 
-        bytes_recvd_str = convert_bytes_to_human_readable(len(data))
-        logger.info(f"Received {bytes_recvd_str} from {addr[0]}:{addr[1]}")
-
         logger.debug("Close the socket")
         self.transport.close()
 
@@ -45,26 +42,35 @@ class EchoClientProtocol:
 
     def connection_lost(self, exc):
         logger.debug("Connection closed")
-        self.on_con_lost.set_result(True)
+        if not self.on_con_lost.done():  # Check if the future is already done
+            self.on_con_lost.set_result(True)
 
 
 class AsyncClient:
 
-    def __init__(self, buffer: Union[list, deque], server_address: tuple = None):
+    def __init__(
+        self, buffer: Union[list, deque], server_address: tuple = None, timeout=None
+    ):
         self._buffer = buffer
         self.server_address = server_address or ("localhost", 0)
+        self.bytes_recvd = Counter("bytes_recvd", "Amount of bytes received from node")
+        self.timeout = timeout
 
-    async def request(self, message="", server_address=None):
+    async def request(self, message="", server_address=None, timeout=None):
         server_address = server_address or self.server_address
+        timeout = timeout or self.timeout
         loop = asyncio.get_running_loop()
 
         on_con_lost = loop.create_future()
 
         def data_received_callback(data):
-            try:
-                self._buffer.put(data)
-            except AttributeError:
-                self._buffer.append(data)
+            self._buffer.append(data)
+            bytes_recvd = len(data)
+            bytes_recvd_str = convert_bytes_to_human_readable(bytes_recvd)
+            self.bytes_recvd.inc(bytes_recvd)
+            logger.info(
+                f"Received {bytes_recvd_str} from {server_address[0]}:{server_address[1]}"
+            )
 
         transport, protocol = await loop.create_datagram_endpoint(
             lambda: EchoClientProtocol(message, on_con_lost, data_received_callback),
@@ -72,6 +78,13 @@ class AsyncClient:
         )
 
         try:
-            await on_con_lost
+            if timeout:
+                await asyncio.wait_for(on_con_lost, timeout)
+            else:
+                await on_con_lost
+        except asyncio.TimeoutError:
+            logging.warning(
+                f"Connection to {server_address} timed out after {timeout}s"
+            )
         finally:
             transport.close()

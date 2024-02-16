@@ -10,6 +10,7 @@ import logging
 import logging.handlers
 import os
 import asyncio
+from prometheus_client import start_http_server
 
 from custom_logging import setup_logger, ColoredLogFormatter
 from metrics_agent import MetricsAgent
@@ -124,25 +125,28 @@ def main():
     #     server_address=server_address,
     # )
 
-    # # Set up an Agent to retrieve data from the Arduino nodes
-    # node_client = NodeSwarmClient(
-    #     buffer=agent._input_buffer,
-    #     update_interval=config["node_client"]["update_interval"],
-    # )
+    # Set up an Agent to retrieve data from the Arduino nodes
+    node_client = NodeSwarmClient(
+        buffer=agent._input_buffer,
+        update_interval=config["node_client"]["update_interval"],
+        timeout=config["node_client"]["timeout"],
+    )
 
-    # Initialize html scraper
-    scraper_agent = HTMLScraperAgent(agent._input_buffer)
+    # # Initialize html scraper
+    # scraper_agent = HTMLScraperAgent(agent._input_buffer)
 
-    config_scraper = config["html_scraper_agent"]
-    # scraper_address = "config/test.html"
+    # config_scraper = config["html_scraper_agent"]
+    # # scraper_address = "config/test.html"
+
+    start_http_server(8000)
 
     async def gather_data_from_agents():
         await asyncio.gather(
-            scraper_agent.do_work_periodically(
-                update_interval=config_scraper["update_interval"],
-                server_address=config_scraper["scrape_address"],
-            ),
-            # node_client.request_data_periodically(),
+            # scraper_agent.do_work_periodically(
+            #     update_interval=config_scraper["update_interval"],
+            #     server_address=config_scraper["scrape_address"],
+            # ),
+            node_client.request_data_periodically(),
         )
 
     asyncio.run(gather_data_from_agents())
