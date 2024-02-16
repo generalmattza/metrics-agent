@@ -114,12 +114,8 @@ class NodeSwarmClient(AsyncClient):
     _node_list_filepath = NODE_FILEPATH
     _node_command_filepath = NODE_COMMAND_FILEPATH
 
-    def __init__(
-        self,
-        buffer: Union[list, deque],
-        update_interval=10,
-    ):
-        super().__init__(buffer=buffer)
+    def __init__(self, buffer: Union[list, deque], update_interval=10, timeout=None):
+        super().__init__(buffer=buffer, timeout=timeout)
         self.update_interval = update_interval
         self.nodes = fetch_nodes(self._node_list_filepath)
         self.commands = fetch_commands(self._node_command_filepath)
@@ -127,7 +123,7 @@ class NodeSwarmClient(AsyncClient):
     async def send_command(self, command):
         for node in self.nodes:
             message = getattr(self.commands[node.type], command)
-            await self.request(message, node.address)
+            await self.request(message, node.address, timeout=self.timeout)
 
     async def request_data(self):
         await self.send_command(command="request_data")
