@@ -49,6 +49,35 @@ def setup_logging():
     )
     info_file_handler.setLevel(logging.INFO)
 
+    metrics_agent_info_handler = logging.handlers.TimedRotatingFileHandler(
+        filename=f"logs/metrics_agent.info.log",
+        when="midnight",
+        interval=1,
+        backupCount=7,
+    )
+    metrics_agent_info_handler.setLevel(logging.INFO)
+    metrics_agent_debug_handler = logging.handlers.TimedRotatingFileHandler(
+        filename=f"logs/metrics_agent.debug.log",
+        when="midnight",
+        interval=1,
+        backupCount=7,
+    )
+    metrics_agent_debug_handler.setLevel(logging.DEBUG)
+    node_client_info_handler = logging.handlers.TimedRotatingFileHandler(
+        filename=f"logs/node_client.info.log",
+        when="midnight",
+        interval=1,
+        backupCount=7,
+    )
+    node_client_info_handler.setLevel(logging.INFO)
+    node_client_debug_handler = logging.handlers.TimedRotatingFileHandler(
+        filename=f"logs/node_client.debug.log",
+        when="midnight",
+        interval=1,
+        backupCount=7,
+    )
+    node_client_debug_handler.setLevel(logging.INFO)
+
     # set the log format for the handlers
     console_handler.setFormatter(
         ColoredLogFormatter(
@@ -68,6 +97,37 @@ def setup_logging():
             datefmt="%Y-%m-%d %H:%M:%S",
         )
     )
+    metrics_agent_info_handler.setFormatter(
+        logging.Formatter(
+            fmt="%(asctime)s - %(message)s",
+            datefmt="%H:%M:%S",
+        )
+    )
+    metrics_agent_debug_handler.setFormatter(
+        logging.Formatter(
+            fmt="%(asctime)s - %(message)s",
+            datefmt="%H:%M:%S",
+        )
+    )
+    node_client_info_handler.setFormatter(
+        logging.Formatter(
+            fmt="%(asctime)s - %(message)s",
+            datefmt="%H:%M:%S",
+        )
+    )
+    node_client_debug_handler.setFormatter(
+        logging.Formatter(
+            fmt="%(asctime)s - %(message)s",
+            datefmt="%H:%M:%S",
+        )
+    )
+
+    metric_agent_logger = logging.getLogger("metrics_agent.agent")
+    node_client_logger = logging.getLogger("node_client.async_client")
+    metric_agent_logger.addHandler(metrics_agent_info_handler)
+    metric_agent_logger.addHandler(metrics_agent_debug_handler)
+    node_client_logger.addHandler(node_client_info_handler)
+    node_client_logger.addHandler(node_client_debug_handler)
 
     # create the logger
     logger = setup_logger(
