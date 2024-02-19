@@ -21,9 +21,10 @@ from metrics_agent import (
     ExpandFields,
     TimePrecision,
 )
+from html_scraper_agent import HTMLScraperAgent
 
 
-def setup_logging(client):
+def setup_logging():
     import sys
 
     # Setup logging
@@ -32,11 +33,11 @@ def setup_logging(client):
     console_handler = logging.StreamHandler(sys.stdout)
     console_handler.setLevel(logging.INFO)
 
-    debug_file_handler = logging.handlers.TimedRotatingFileHandler(
+    debug_file_handler = logging.handlers.RotatingFileHandler(
         filename=f"logs/{script_name}.debug.log",
-        when="midnight",
-        interval=1,
-        backupCount=7,
+        mode="a",
+        maxBytes=10_485_760,
+        backupCount=10,
     )
     debug_file_handler.setLevel(logging.DEBUG)
 
@@ -68,17 +69,12 @@ def setup_logging(client):
         )
     )
 
-    # Setup and assign logging handler to influxdb
-    # influx_logging_handler = client.get_logging_handler()
-    # influx_logging_handler.setLevel(logging.INFO)
-
     # create the logger
     logger = setup_logger(
         handlers=[
             console_handler,
             debug_file_handler,
             info_file_handler,
-            # influx_logging_handler,
         ]
     )
 
@@ -92,12 +88,12 @@ def main():
     from network_simple import SimpleServerTCP
 
     config = load_config("config/application.toml")
+    logger = setup_logging()
 
     # Create a client for the agent to write data to a database
     database_client = FastInfluxDBClient.from_config_file(
-        config_file="config/influx_test.toml"
+        config_file="config/influx_live.toml"
     )
-    logger = setup_logging(database_client)
 
     # create the agent and assign it the client and desired processors
     agent = MetricsAgent(
@@ -124,38 +120,28 @@ def main():
         server_address=server_address,
     )
 
-    # Set up an Agent to retrieve data from the Arduino nodes
+    # # Set up an Agent to retrieve data from the Arduino nodes
     node_client = NodeSwarmClient(
         buffer=agent._input_buffer,
         update_interval=config["node_client"]["update_interval"],
     )
 
-    # web_scraper = WebScraperClient(
-    #     buffer=agent._input_buffer,
-    #     config=config("webscraper")
-    # )
+    # Initialize html scraper
+    scraper_agent = HTMLScraperAgent(agent._input_buffer)
 
-    # # Asynchronously scrape data from a webpage
-    # # Webpage config defined in config/application.toml file
-    # # Scrape data from website
-    # # Package metric in dict
-    # # Place dict in buffer
-    # # self._buffer.put(metrics: list[dicts] or dict)
+    config_scraper = config["html_scraper_agent"]
+    # scraper_address = "config/test.html"
 
-    # metric = {
-    #     "measurement": "liner_heater",
-    #     "fields":{"IR_0": 22.3, "IR_1": 25, ...},
-    #     "time": datetime.now() or timestamp,
-    # }
-    # "config/webscraper.yaml:"
-    # {"id": timestamp1,
-    #  "id2": timestamp2}
+    async def gather_data_from_agents():
+        await asyncio.gather(
+            scraper_agent.do_work_periodically(
+                update_interval=config_scraper["update_interval"],
+                server_address=config_scraper["scrape_address"],
+            ),
+            node_client.request_data_periodically(),
+        )
 
-    # # format = load_config("format.yaml")
-    # # scraped_values = scrape(web_page)
-    # # [scraped_values.get(key, some_default) for key in format]
-
-    asyncio.run(node_client.request_data_periodically())
+    asyncio.run(gather_data_from_agents())
 
 
 def example_with_server():
