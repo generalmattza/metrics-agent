@@ -1,5 +1,5 @@
 import pytest
-from metrics_agent import NodeClient, AsyncClient, NodeSwarmClient
+from metrics_processor import NodeClient, AsyncClient, NodeSwarmClient
 import asyncio
 import logging
 

@@ -3,7 +3,7 @@ from datetime import datetime
 
 
 def test_metric():
-    from metrics_agent.metric import Metric
+    from metrics_processor.metric import Metric
 
     metric = Metric(name="test_metric", value=0.5)
     assert metric.name == "test_metric"

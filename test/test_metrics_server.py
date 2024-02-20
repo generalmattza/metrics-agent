@@ -4,8 +4,8 @@ from datetime import datetime, timedelta, timezone
 import logging
 
 from network_simple.client import SimpleClientTCP
-from metrics_agent import MetricsAgent
-from metrics_agent.metric import Metric
+from metrics_processor import MetricsAgent
+from metrics_processor.metric import Metric
 
 logger = logging.getLogger(__name__)
 

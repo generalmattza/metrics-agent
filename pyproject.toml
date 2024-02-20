@@ -26,17 +26,8 @@ classifiers = [
 dependencies = [
   "pandas>=2.2.0",
   "pyarrow>=15.0.0",
-<<<<<<< HEAD
   "tomli >= 1.1.0 ; python_version < '3.11'",
   "buffered @ git+https://github.com/davidson-engineering/buffered.git@v1.0.0",
-=======
-  "tomli >= 2.0.1 ; python_version < '3.11'",
-  "fast-database-clients @ git+https://github.com/davidson-engineering/fast-database-clients.git@v2.0.3",
-  "buffered @ git+https://github.com/davidson-engineering/buffered.git@v1.0.1",
-  "network-simple @ git+https://github.com/davidson-engineering/network-simple.git@v1.0.4",
-  "custom-logging @ git+https://github.com/davidson-engineering/python-custom-logging.git@v1.0.2",
-  "html-scraper-agent @ git+https://github.com/generalmattza/html-scraper-agent.git",
->>>>>>> 610e534d407cd43d85bef99732fc3fd49201d77d
 ]
 
 # If a module, then use fetch version from src/module_name/__init__.py

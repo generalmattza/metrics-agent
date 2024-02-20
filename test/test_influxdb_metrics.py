@@ -3,7 +3,7 @@ import logging
 from datetime import datetime, timedelta, timezone
 import time
 
-from metrics_agent import Metric
+from metrics_processor import Metric
 
 logger = logging.getLogger(__name__)
 
@@ -52,7 +52,7 @@ def test_metrics_agent_simple(metrics_agent, random_dataset_1):
 
 
 def run_aggregator_test(agent, dataset):
-    from metrics_agent.processors import MetricsAggregatorStats
+    from metrics_processor.pipeline import MetricsAggregatorStats
     import time
 
     random_dataset_1_stats = []
