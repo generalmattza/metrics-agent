@@ -190,7 +190,7 @@ class JSONReader(MetricsPipeline):
         return metrics
 
 
-class ExtraTags(MetricsPipeline):
+class ExtraTagger(MetricsPipeline):
 
     def process_method(self, metrics):
 
@@ -219,7 +219,7 @@ class TimePrecision(MetricsPipeline):
         return metrics
 
 
-class ExpandFields(MetricsPipeline):
+class FieldExpander(MetricsPipeline):
 
     def process_method(self, metrics):
         metrics = expand_metrics(metrics)
@@ -239,7 +239,7 @@ class Formatter(MetricsPipeline):
     def format_metrics(self, metrics, formats):
 
         for metric in metrics:
-            for k, v in metric["fields"].items():
+            for k, _ in metric["fields"].items():
 
                 try:
                     format = formats[k]
@@ -257,14 +257,14 @@ class Formatter(MetricsPipeline):
                     )
                     metric["fields"][k] = str(metric["fields"][k])
 
-                try:
-                    metric["fields"] = {format["db_fieldname"]: metric["fields"][k]}
-                except KeyError:
-                    # No database fieldname specified, use existing field name
-                    logger.debug(
-                        f'No database fieldname specified for metric {metric["measurement"]}:{metric["fields"][k]}, use existing field name'
-                    )
-                    continue
+                # try:
+                #     metric["fields"] = {format["db_fieldname"]: metric["fields"][k]}
+                # except KeyError:
+                #     # No database fieldname specified, use existing field name
+                #     logger.debug(
+                #         f'No database fieldname specified for metric {metric["measurement"]}:{metric["fields"][k]}, use existing field name'
+                #     )
+                #     continue
                 try:
                     metric["tags"] = metric["tags"] | format["tags"]
                 except KeyError:
@@ -272,3 +272,61 @@ class Formatter(MetricsPipeline):
                     pass
 
         return metrics
+
+class Renamer(MetricsPipeline):
+    def process_method(self, metrics):
+        name_mapping = load_yaml_file(self.config["name_mapping_filepath"])
+        metrics = self.rename_metrics(metrics, name_mapping)
+        return metrics
+
+    def rename_metrics(self, metrics, name_mapping):
+        for metric in metrics:
+            for field in metric["fields"]:
+                try:
+                    metric["fields"] = {name_mapping[field]: metric["fields"][field]}
+                except KeyError:
+                    # No database fieldname specified, use existing field name
+                    logger.debug(
+                        f'No database fieldname specified for metric {metric["measurement"]}:{metric["fields"][field]}, use existing field name'
+                    )
+        return metrics
+
+
+class OutlierRemover(MetricsPipeline):
+
+    def process_method(self, metrics):
+        boundaries = load_yaml_file(self.config["boundaries_filepath"])
+        metrics = self.remove_outliers(metrics, boundaries)
+        return metrics
+
+    def remove_outliers(self, metrics, boundaries):
+        metrics_filtered = []
+        metrics_removed = []
+        for metric in metrics:
+            for field in metric["fields"]:
+                try:
+                    boundary = boundaries[field]
+                except KeyError:
+                    pass
+                value = metric["fields"][field]
+                if isinstance(value, str):
+                    # If value is string, do nothing (This may be changed in future)
+                    metrics_filtered.append(metric)
+                    continue
+                try:
+                    if value > boundary["max"]:
+                        metrics_removed.append(metric)
+                        continue
+                except KeyError:
+                    pass
+                try:
+                    if value < boundary["min"]:
+                        metrics_removed.append(metric)
+                        continue
+                except KeyError:
+                    pass
+                metrics_filtered.append(metric)
+        logger.debug(
+            f"Removed {len(metrics_removed)} metrics: {shorten_data(str(metrics_removed))}"
+        )
+        return metrics_filtered
