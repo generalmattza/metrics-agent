@@ -30,6 +30,7 @@ PIPELINE_CONFIG_DEFAULT = "config/metric_pipelines.toml"
 
 # Helper Functions
 # *******************************************************************
+TIMEZONE_CACHE = {} # Added to help improve performance
 
 
 def load_yaml_file(filepath):
@@ -84,6 +85,15 @@ def expand_metrics(metrics):
     return expanded_metrics
 
 
+def get_timezone(timezone_str):
+    """
+    Get a timezone object from cache or create and cache it if not found
+    """
+    if timezone_str not in TIMEZONE_CACHE:
+        TIMEZONE_CACHE[timezone_str] = pytz.timezone(timezone_str)
+    return TIMEZONE_CACHE[timezone_str]
+
+
 def localize_timestamp(timestamp, timezone_str="UTC") -> datetime:
     """
     Localize a timestamp to a timezone
@@ -98,7 +108,7 @@ def localize_timestamp(timestamp, timezone_str="UTC") -> datetime:
         dt_utc = timestamp
     else:
         raise ValueError("timestamp must be a float, int, or datetime object")
-    timezone = pytz.timezone(timezone_str)
+    timezone = get_timezone(timezone_str)
     return int(timezone.localize(dt_utc).timestamp())
 
 
