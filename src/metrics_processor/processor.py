@@ -18,10 +18,7 @@ from pathlib import Path
 
 from metrics_processor.exceptions import ConfigFileDoesNotExist
 
-from typing import TYPE_CHECKING
-
-if TYPE_CHECKING:
-    from buffered.buffer import Buffer
+from buffered.buffer import Buffer
 
 logger = logging.getLogger(__name__)
 

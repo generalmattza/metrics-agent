@@ -1,10 +1,9 @@
-[processor]
 update_interval = 1
 input_buffer_length = 65536
 output_buffer_length = 65536
 batch_size = 1000
 
-[processor.statistics]
+[statistics]
 enabled = true
 prometheus_port = 8_000
 update_interval = 60
