@@ -125,17 +125,16 @@ class MetricsProcessor:
             config = load_config(config)
 
         # If no configuation specified, then set as blank dict so default values will be used
-        config = config or {}
+        self.config = config.get("processing", {})
 
-        self.update_interval = update_interval or config.get(
+        self.update_interval = update_interval or self.config.get(
             "update_interval", UPDATE_INTERVAL_SECONDS
         )
 
-        input_buffer_length: int = config.get("input_buffer_length", BUFFER_LENGTH)
-        output_buffer_length: int = config.get("output_buffer_length", BUFFER_LENGTH)
+        input_buffer_length: int = self.config.get("input_buffer_length", BUFFER_LENGTH)
+        output_buffer_length: int = self.config.get("output_buffer_length", BUFFER_LENGTH)
 
-        config_processing: dict = config.get("processing", {})
-        self.batch_size_processing = config_processing.get(
+        self.batch_size_processing = self.config.get(
             "batch_size", BATCH_SIZE_PROCESSING
         )
 
