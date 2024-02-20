@@ -162,7 +162,7 @@ class MetricsProcessor:
         metric_str = shorten_data(f"{measurement}={fields}")
         logger.debug(f"Added metric to buffer: {metric_str}")
 
-    def process(self):
+    def process_input_buffer(self):
         while self.input_buffer.not_empty():
             # dump buffer to list of metrics
             metrics = self.input_buffer.dump(self.batch_size_processing)
@@ -170,7 +170,6 @@ class MetricsProcessor:
                 logger.debug(f"Processing metrics using {pipeline}")
                 metrics = pipeline.process(metrics)
             number_metrics_processed = len(metrics)
-            self._last_sent_time = time.time()
             self.output_buffer.append(metrics)
 
     def passthrough(self):
@@ -190,8 +189,8 @@ class MetricsProcessor:
 
     def run_processing(self):
         while True:
-            if self.processors:
-                self.process()
+            if self.pipelines:
+                self.process_input_buffer()
             else:
                 self.passthrough()
 
