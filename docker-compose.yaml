@@ -11,7 +11,7 @@ services:
     working_dir: /app
     restart: unless-stopped
     command: [ "python", "main.py" ]
-    # user: "1001"
+    user: "1001"
     volumes:
       - ./logs:/app/logs
       - ./config:/app/config

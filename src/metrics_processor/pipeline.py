@@ -7,7 +7,7 @@
 # ---------------------------------------------------------------------------
 
 from __future__ import annotations
-from dataclasses import dataclass, asdict, field
+from dataclasses import dataclass, asdict, field, is_dataclass
 from abc import ABC, abstractmethod
 from datetime import datetime
 import pandas as pd
@@ -65,8 +65,12 @@ def expand_metric_fields(original_dict):
 def expand_metrics(metrics):
     expanded_metrics = []
     for metric in metrics:
+        if is_dataclass(metric):
+            metric = asdict(metric)
         if not isinstance(metric, dict):
-            message = "Metric is str, convert to a dict before using this processor"
+            message = (
+                "Metric is not dict, convert to a dict before using this processor"
+            )
             logger.error(message)
             raise TypeError(message)
         expanded_metric = expand_metric_fields(metric)
