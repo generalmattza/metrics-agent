@@ -149,7 +149,14 @@ class MetricsProcessor:
 
         # Initialize the last sent time
         self._last_sent_time: float = time.time()
-        self.pipelines = pipelines
+        self.pipelines = []
+        # Instantiate pipelines if not already done so
+        for pipeline in pipelines:
+            if isinstance(pipeline, type):  # Check if it's a class type
+                self.pipelines.append(pipeline())
+            else:
+                self.pipelines.append(pipeline)
+
 
         if autostart:
             self.start()
