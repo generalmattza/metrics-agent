@@ -1,4 +1,4 @@
-__version__ = "3.0.1"
+__version__ = "3.0.2"
 
 from metrics_processor.processor import MetricsProcessor, load_config, csv_to_metrics
 # from metrics_processor.pipeline import AggregateStatistics
