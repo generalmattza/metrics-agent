@@ -139,12 +139,12 @@ class MetricsProcessor:
         )
 
         # Set up the agent buffers
-        self.input_buffer: Union[list, deque, Buffer] = input_buffer or Buffer(
-            maxlen=input_buffer_length
-        )
-        self.output_buffer: Union[list, deque, Buffer] = output_buffer or Buffer(
-            maxlen=output_buffer_length
-        )
+        if input_buffer is None:
+            input_buffer = Buffer(maxlen=input_buffer_length)
+        self.input_buffer: Union[list, deque, Buffer] = input_buffer
+        if output_buffer is None:
+            output_buffer = Buffer(maxlen=output_buffer_length)
+        self.output_buffer: Union[list, deque, Buffer] = output_buffer
 
         # Initialize the last sent time
         self._last_sent_time: float = time.time()
