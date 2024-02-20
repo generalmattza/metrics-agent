@@ -41,6 +41,12 @@ def load_toml_file(filepath):
     with open(filepath, mode="rb") as fp:
         return tomllib.load(fp)
 
+def shorten_data(data: str, max_length: int = 75) -> str:
+    """Shorten data to a maximum length."""
+    if not isinstance(data, str):
+        data = str(data)
+    data = data.strip()
+    return data[:max_length] + "..." if len(data) > max_length else data
 
 # Helper Functions
 # *******************************************************************

@@ -125,7 +125,7 @@ class MetricsProcessor:
             config = load_config(config)
 
         # If no configuation specified, then set as blank dict so default values will be used
-        self.config = config.get("processing", {})
+        self.config = config.get("processor", {})
 
         self.update_interval = update_interval or self.config.get(
             "update_interval", UPDATE_INTERVAL_SECONDS
