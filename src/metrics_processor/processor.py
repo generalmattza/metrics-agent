@@ -8,20 +8,20 @@
 """An agent for collecting, aggregating and sending metrics to a database"""
 # ---------------------------------------------------------------------------
 
+from collections import deque
 import time
 import threading
 import logging
 from typing import Union
 from pathlib import Path
 
-from buffered.buffer import Buffer
 
-from metrics_agent.exceptions import ConfigFileDoesNotExist
+from metrics_processor.exceptions import ConfigFileDoesNotExist
 
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from fast_database_clients.fast_database_client import DatabaseClientBase
+    from buffered.buffer import Buffer
 
 logger = logging.getLogger(__name__)
 
@@ -29,7 +29,7 @@ BUFFER_LENGTH = 65_536
 STATS_UPLOAD_ENABLED = True
 STATS_UPLOAD_INTERVAL_SECONDS = 60
 BATCH_SIZE_SENDING = 5_000
-BATCH_SIZE_PROCESSING = 1000
+BATCH_SIZE_PROCESSING = 1_000
 UPDATE_INTERVAL_SECONDS = 10
 
 
@@ -88,10 +88,18 @@ def csv_to_metrics(csv_filepath):
     return metrics
 
 
-class MetricsAgent:
+def shorten_data(data: str, max_length: int = 75) -> str:
+    """Shorten data to a maximum length."""
+    if not isinstance(data, str):
+        data = str(data)
+    data = data.strip()
+    return data[:max_length] + "..." if len(data) > max_length else data
+
+
+class MetricsProcessor:
     """
 
-    An agent for collecting, processing and sending metrics to a database
+    An agent for collecting and processing metrics
 
     :param interval: The interval at which the agent will aggregate and send metrics to the database
     :param server: Whether to start a server to receive metrics from other agents
@@ -103,8 +111,9 @@ class MetricsAgent:
 
     def __init__(
         self,
-        database_client,
-        processors: Union[list, tuple] = None,
+        input_buffer: Union[list, deque, Buffer] = None,
+        output_buffer: Union[list, deque, Buffer] = None,
+        pipelines: Union[list, tuple] = None,
         autostart: bool = True,
         update_interval: float = None,
         config: Union[dict, str] = None,
@@ -125,26 +134,25 @@ class MetricsAgent:
             "update_interval", UPDATE_INTERVAL_SECONDS
         )
 
-        buffer_length = config.get("buffer_length", BUFFER_LENGTH)
+        input_buffer_length: int = config.get("input_buffer_length", BUFFER_LENGTH)
+        output_buffer_length: int = config.get("output_buffer_length", BUFFER_LENGTH)
 
-        config_database_client = config.get("db_client", {})
-        self.batch_size_sending = config_database_client.get(
-            "batch_size", BATCH_SIZE_SENDING
-        )
-
-        config_processing = config.get("processing", {})
+        config_processing: dict = config.get("processing", {})
         self.batch_size_processing = config_processing.get(
             "batch_size", BATCH_SIZE_PROCESSING
         )
 
         # Set up the agent buffers
-        self._input_buffer = Buffer(maxlen=buffer_length)
-        self._send_buffer = Buffer(maxlen=buffer_length)
+        self.input_buffer: Union[list, deque, Buffer] = input_buffer or Buffer(
+            maxlen=input_buffer_length
+        )
+        self.output_buffer: Union[list, deque, Buffer] = output_buffer or Buffer(
+            maxlen=output_buffer_length
+        )
 
         # Initialize the last sent time
         self._last_sent_time: float = time.time()
-        self.database_client = database_client
-        self.processors = processors
+        self.pipelines = pipelines
 
         if autostart:
             self.start()
@@ -153,63 +161,35 @@ class MetricsAgent:
         self, measurement: str, fields: dict, time: int = None, **kwargs
     ):
         metric = dict(measurement=measurement, fields=fields, time=time, **kwargs)
-        self._input_buffer.put(metric)
-        logger.debug(f"Added metric to buffer: {measurement}={fields}")
-        # self.session_stats.increment("metrics_received")
+        self.input_buffer.append(metric)
+        metric_str = shorten_data(f"{measurement}={fields}")
+        logger.debug(f"Added metric to buffer: {metric_str}")
 
     def process(self):
-        while self._input_buffer.not_empty():
+        while self.input_buffer.not_empty():
             # dump buffer to list of metrics
-            metrics = self._input_buffer.dump(self.batch_size_processing)
-            for processor in self.processors:
-                logger.debug(f"Processing metrics using {processor}")
-                metrics = processor.process(metrics)
+            metrics = self.input_buffer.dump(self.batch_size_processing)
+            for pipeline in self.pipelines:
+                logger.debug(f"Processing metrics using {pipeline}")
+                metrics = pipeline.process(metrics)
             number_metrics_processed = len(metrics)
             self._last_sent_time = time.time()
-            self._send_buffer.put(metrics)
-            # self.session_stats.increment("metrics_processed", number_metrics_processed)
+            self.output_buffer.append(metrics)
 
     def passthrough(self):
         # If no post processors are defined, pass through the input buffer to the send buffer
-        while self._input_buffer.not_empty():
-            self._send_buffer.put(next(self._input_buffer))
-            # self.session_stats.increment("metrics_processed")
+        while self.input_buffer.not_empty():
+            self.output_buffer.append(next(self.input_buffer))
 
-    from prometheus_client import start_http_server, Summary
-
-    def send_to_database(self, metrics_to_send):
-        # Send the metrics in the send buffer to the database
-        if metrics_to_send:
-            number_metrics_sent = len(metrics_to_send)
-            self.database_client.write(metrics_to_send)
-            logger.info(f"Sent {number_metrics_sent} metrics to database")
-            # self.session_stats.increment("metrics_sent", number_metrics_sent)
+    # from prometheus_client import start_http_server, Summary
 
     # Thread management methods
     # *************************************************************************
-    def start_processing_thread(self):
-        self.processing_thread = threading.Thread(
-            target=self.run_processing, daemon=True
-        )
-        self.processing_thread.start()
-        logger.debug("Started processing thread")
 
     def start_sending_thread(self):
         self.sending_thread = threading.Thread(target=self.run_sending, daemon=True)
         self.sending_thread.start()
         logger.debug("Started send thread")
-
-    # def start_session_stats_thread(self):
-    #     self.session_stats_thread = threading.Thread(
-    #         target=self.update_session_stats, daemon=True
-    #     )
-    #     self.session_stats_thread.start()
-    #     logger.debug("Started session stats thread")
-
-    # def update_session_stats(self):
-    #     while True:
-    #         self._input_buffer.put(self.session_stats.build_metrics())
-    #         time.sleep(self.stats_update_interval)
 
     def run_processing(self):
         while True:
@@ -220,44 +200,43 @@ class MetricsAgent:
 
             time.sleep(self.update_interval)  # Adjust sleep time as needed
 
-    def run_sending(self):
-        while True:
-            # Dump metrics from buffer, and send to the database client
-            metrics_to_send = self._send_buffer.dump(max=self.batch_size_sending)
-            self.send_to_database(metrics_to_send)
-            time.sleep(self.update_interval)
-
-    def stop_processing_thread(self):
+    def stop(self):
         self.processing_thread.join()
-        logger.debug("Stopped processing thread")
-
-    def stop_sending_thread(self):
-        self.sending_thread.join()
-        logger.debug("Stopped sending thread")
+        logger.debug(f"Stopped processing metrics in thread {self.processing_thread}")
 
     def start(self):
-        self.start_processing_thread()
-        self.start_sending_thread()
-        # if self.stats_upload_enabled:
-        # self.start_session_stats_thread()
+        self.processing_thread = threading.Thread(
+            target=self.run_processing, daemon=True
+        )
+        self.processing_thread.start()
+        logger.debug(f"Started processing metrics in thread {self.processing_thread}")
         return self
 
     # Buffer management methods
     # *************************************************************************
 
     def clear_input_buffer(self):
-        self._input_buffer.clear()
+        self.input_buffer.clear()
 
-    def get_input_buffer_size(self):
-        return self._input_buffer.size()
+    def clear_output_buffer(self):
+        self.output_buffer.clear()
+
+    def get_input_buffer_occupancy(self):
+        return self.input_buffer.size()
+
+    def get_output_buffer_occupancy(self):
+        return self.output_buffer.size()
+
+    def get_buffer_occupancy(self):
+        return str(self.input_buffer), str(self.output_buffer)
 
     def run_until_buffer_empty(self):
-        while self._input_buffer.not_empty():
+        while self.input_buffer.not_empty():
             time.sleep(self.update_interval)
         logger.debug("Buffer is empty")
 
     def __repr__(self):
-        return f"{self.__class__.__name__}({self.database_client})"
+        return f"{self.__class__.__name__}({self.get_buffer_occupancy()})"
 
     def __enter__(self):
         return self
@@ -268,69 +247,7 @@ class MetricsAgent:
     def __del__(self):
         try:
             # This method is called when the object is about to be destroyed
-            self.stop_processing_thread()
-        except AttributeError:
-            pass
-        try:
-            self.stop_sending_thread()
+            self.stop()
         except AttributeError:
             pass
         logger.info(f"Metrics agent {self} destroyed")
-
-
-def main():
-    from fast_database_clients.fast_influxdb_client import FastInfluxDBClient
-    from node_client import NodeSwarmClient
-    from network_simple import SimpleServerTCP
-    from metrics_agent.processors import (
-        JSONReader,
-        Formatter,
-        TimeLocalizer,
-        ExpandFields,
-        TimePrecision,
-    )
-
-    logger = logging.getLogger(__name__)
-    logging.basicConfig(level=logging.DEBUG)
-
-    config = load_config("config/application.toml")
-
-    # Create a client for the agent to write data to a database
-    database_client = FastInfluxDBClient.from_config_file(
-        config_file="config/influx_test.toml"
-    )
-
-    # create the agent and assign it the client and desired processors
-    agent = MetricsAgent(
-        database_client=database_client,
-        processors=[
-            JSONReader(),
-            TimeLocalizer(),
-            TimePrecision(),
-            ExpandFields(),
-            Formatter(),
-        ],
-        config=config["agent"],
-    )
-
-    # Start TCP Server
-
-    server_address = (
-        config["server"]["host"],
-        config["server"]["port"],
-    )
-
-    server_tcp = SimpleServerTCP(
-        output_buffer=agent._input_buffer,
-        server_address=server_address,
-    )
-
-    # Start up the server to expose the metrics.
-    start_http_server(8000)
-    # Generate some requests.
-    while True:
-        time.sleep(1)
-
-
-if __name__ == "__main__":
-    main()

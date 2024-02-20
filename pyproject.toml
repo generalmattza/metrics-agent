@@ -1,6 +1,6 @@
 [project]
-name = "metrics-agent"
-description = "An agent to send metrics from a script to a database"
+name = "metrics-processor"
+description = "An agent to process metrics"
 dynamic = ["version"]
 
 readme = "README.md"
@@ -27,22 +27,18 @@ dependencies = [
   "pandas>=2.2.0",
   "pyarrow>=15.0.0",
   "tomli >= 1.1.0 ; python_version < '3.11'",
-  "fast-database-clients @ git+https://github.com/davidson-engineering/fast-database-clients.git@v2.0.1",
   "buffered @ git+https://github.com/davidson-engineering/buffered.git@v1.0.0",
-  "network-simple @ git+https://github.com/generalmattza/network-simple.git@v1.0.2",
-  "application-metrics @ git+https://github.com/generalmattza/application-metrics.git@v0.0.1",
-  "custom-logging @ git+https://github.com/davidson-engineering/python-custom-logging.git@v1.0.2",
 ]
 
 # If a module, then use fetch version from src/module_name/__init__.py
 [tool.setuptools.dynamic]
-version = { attr = "metrics_agent.__version__" }
+version = { attr = "metrics_processor.__version__" }
 
 [project.optional-dependencies]
 test = ["pytest >= 8.0.0"]
 
 [project.urls]
 homepage = "https://davidson.engineering"
-repository = "https://github.com/davidson-engineering/metrics-agent"
+repository = "https://github.com/davidson-engineering/metrics-processor"
 # documentation = "https://readthedocs.org"
 # changelog = "https://github.com/me/spam/blob/master/CHANGELOG.md"

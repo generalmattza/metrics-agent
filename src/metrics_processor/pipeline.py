@@ -26,7 +26,7 @@ logger = logging.getLogger(__name__)
 
 # Default Parameters
 # *******************************************************************
-PROCESSOR_CONFIG_DEFAULT = "config/processors.toml"
+PIPELINE_CONFIG_DEFAULT = "config/metric_pipelines.toml"
 
 # Helper Functions
 # *******************************************************************
@@ -42,7 +42,7 @@ def load_toml_file(filepath):
         return tomllib.load(fp)
 
 
-# Processor Functions
+# Helper Functions
 # *******************************************************************
 
 
@@ -113,11 +113,10 @@ class MetricStats:
         yield from asdict(self).values()
 
 
-# Processor Classes
+# Pipeline Classes
 # *******************************************************************
 
-
-class MetricsProcessor(ABC):
+class MetricsPipeline(ABC):
     def __init__(self, config=None) -> None:
 
         if config:
@@ -125,11 +124,11 @@ class MetricsProcessor(ABC):
             self.config = config
         else:
             self._external_config = True
-            self.config = self._load_config(PROCESSOR_CONFIG_DEFAULT)
+            self.config = self._load_config(PIPELINE_CONFIG_DEFAULT)
 
     def refresh_config(self):
         if self._external_config:
-            self.config = self._load_config(PROCESSOR_CONFIG_DEFAULT)
+            self.config = self._load_config(PIPELINE_CONFIG_DEFAULT)
 
     def _load_config(self, filepath):
         class_name = self.__class__.__name__
@@ -152,7 +151,7 @@ class MetricsProcessor(ABC):
         return self.__class__.__name__
 
 
-class AggregateStatistics(MetricsProcessor):
+class AggregateStatistics(MetricsPipeline):
     def process_method(self, metrics):
         df = pd.DataFrame(metrics).set_index("name")
         df_mean = df.groupby("name").mean()
@@ -179,7 +178,7 @@ class AggregateStatistics(MetricsProcessor):
         return metrics_stats
 
 
-class JSONReader(MetricsProcessor):
+class JSONReader(MetricsPipeline):
     def process_method(self, metrics):
         for i, metric in enumerate(metrics):
             if isinstance(metric, str):
@@ -187,7 +186,7 @@ class JSONReader(MetricsProcessor):
         return metrics
 
 
-class ExtraTags(MetricsProcessor):
+class ExtraTags(MetricsPipeline):
 
     def process_method(self, metrics):
 
@@ -199,7 +198,7 @@ class ExtraTags(MetricsProcessor):
         return metrics
 
 
-class TimeLocalizer(MetricsProcessor):
+class TimeLocalizer(MetricsPipeline):
 
     def process_method(self, metrics):
         self.local_tz = self.config["local_tz"]
@@ -208,7 +207,7 @@ class TimeLocalizer(MetricsProcessor):
         return metrics
 
 
-class TimePrecision(MetricsProcessor):
+class TimePrecision(MetricsPipeline):
 
     def process_method(self, metrics):
         for metric in metrics:
@@ -216,14 +215,14 @@ class TimePrecision(MetricsProcessor):
         return metrics
 
 
-class ExpandFields(MetricsProcessor):
+class ExpandFields(MetricsPipeline):
 
     def process_method(self, metrics):
         metrics = expand_metrics(metrics)
         return metrics
 
 
-class Formatter(MetricsProcessor):
+class Formatter(MetricsPipeline):
 
     def process_method(self, metrics):
 
