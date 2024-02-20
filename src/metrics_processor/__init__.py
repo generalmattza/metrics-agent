@@ -1,6 +1,6 @@
 __version__ = "3.0.0"
 
-from metrics_processor.processor import MetricsAgent, load_config
+from metrics_processor.processor import MetricsProcessor, load_config
 from metrics_processor.pipeline import AggregateStatistics
 
 from metrics_processor.pipeline import (
