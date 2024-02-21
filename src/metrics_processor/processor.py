@@ -183,9 +183,7 @@ class MetricsProcessor:
                 logger.debug(f"Processing metrics using {pipeline}")
                 metrics = pipeline.process(metrics)
             self.output_buffer.extend(metrics)
-            self.metrics_processed.labels("metrics_processor").inc(
-                len(metrics)
-            )
+            self.metrics_processed.labels("metrics_processor").inc(len(metrics))
 
     def passthrough(self):
         # If no post processors are defined, pass through the input buffer to the send buffer
