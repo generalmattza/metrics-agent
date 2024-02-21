@@ -143,6 +143,17 @@ class MetricStats:
 
 
 class MetricsPipeline(ABC):
+
+    processing_time = Histogram(
+        "metrics_processor_processing_time",
+        "Average time taken to process a metric",
+        ["pipeline"],
+    )
+
+    metrics_processed = Counter(
+        "metrics_processed", "Number of metrics processed", ["agent", "pipeline"]
+    )
+
     def __init__(self, config=None) -> None:
 
         if config:
@@ -151,15 +162,6 @@ class MetricsPipeline(ABC):
         else:
             self._external_config = True
             self.config = self._load_config(PIPELINE_CONFIG_DEFAULT)
-
-        self.processing_time = Histogram(
-            "metrics_processor_processing_time",
-            "Average time taken to process a metric",
-            ["pipeline"],
-        )
-        self.metrics_processed = Counter(
-            "metrics_processed", "Number of metrics processed", ["agent", "pipeline"]
-        )
 
     def refresh_config(self):
         if self._external_config:
