@@ -125,31 +125,37 @@ class MetricsProcessor:
             config = load_config(config)
 
         # If no configuation specified, then set as blank dict so default values will be used
-        config = config or {}
+        self.config = config.get("processor", {})
 
-        self.update_interval = update_interval or config.get(
+        self.update_interval = update_interval or self.config.get(
             "update_interval", UPDATE_INTERVAL_SECONDS
         )
 
-        input_buffer_length: int = config.get("input_buffer_length", BUFFER_LENGTH)
-        output_buffer_length: int = config.get("output_buffer_length", BUFFER_LENGTH)
+        input_buffer_length: int = self.config.get("input_buffer_length", BUFFER_LENGTH)
+        output_buffer_length: int = self.config.get("output_buffer_length", BUFFER_LENGTH)
 
-        config_processing: dict = config.get("processing", {})
-        self.batch_size_processing = config_processing.get(
+        self.batch_size_processing = self.config.get(
             "batch_size", BATCH_SIZE_PROCESSING
         )
 
         # Set up the agent buffers
-        self.input_buffer: Union[list, deque, Buffer] = input_buffer or Buffer(
-            maxlen=input_buffer_length
-        )
-        self.output_buffer: Union[list, deque, Buffer] = output_buffer or Buffer(
-            maxlen=output_buffer_length
-        )
+        if input_buffer is None:
+            input_buffer = Buffer(maxlen=input_buffer_length)
+        self.input_buffer: Union[list, deque, Buffer] = input_buffer
+        if output_buffer is None:
+            output_buffer = Buffer(maxlen=output_buffer_length)
+        self.output_buffer: Union[list, deque, Buffer] = output_buffer
 
         # Initialize the last sent time
         self._last_sent_time: float = time.time()
-        self.pipelines = pipelines
+        self.pipelines = []
+        # Instantiate pipelines if not already done so
+        for pipeline in pipelines:
+            if isinstance(pipeline, type):  # Check if it's a class type
+                self.pipelines.append(pipeline())
+            else:
+                self.pipelines.append(pipeline)
+
 
         if autostart:
             self.start()
@@ -162,7 +168,7 @@ class MetricsProcessor:
         metric_str = shorten_data(f"{measurement}={fields}")
         logger.debug(f"Added metric to buffer: {metric_str}")
 
-    def process(self):
+    def process_input_buffer(self):
         while self.input_buffer.not_empty():
             # dump buffer to list of metrics
             metrics = self.input_buffer.dump(self.batch_size_processing)
@@ -170,8 +176,7 @@ class MetricsProcessor:
                 logger.debug(f"Processing metrics using {pipeline}")
                 metrics = pipeline.process(metrics)
             number_metrics_processed = len(metrics)
-            self._last_sent_time = time.time()
-            self.output_buffer.append(metrics)
+            self.output_buffer.extend(metrics)
 
     def passthrough(self):
         # If no post processors are defined, pass through the input buffer to the send buffer
@@ -190,8 +195,8 @@ class MetricsProcessor:
 
     def run_processing(self):
         while True:
-            if self.processors:
-                self.process()
+            if self.pipelines:
+                self.process_input_buffer()
             else:
                 self.passthrough()
 
