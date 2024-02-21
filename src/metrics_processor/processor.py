@@ -106,6 +106,14 @@ class MetricsProcessor:
 
     """
 
+    # Initialize prometheus metrics
+    buffer_occupancy = Gauge(
+        "buffer_occupancy", "The occupancy of the buffer", ["agent", "buffer"]
+    )
+    metrics_processed = Counter(
+        "metrics_processed", "The number of metrics processed", ["agent"]
+    )
+
     def __init__(
         self,
         input_buffer: Union[list, deque, Buffer] = None,
@@ -155,14 +163,6 @@ class MetricsProcessor:
                 self.pipelines.append(pipeline())
             else:
                 self.pipelines.append(pipeline)
-
-        # Initialize prometheus metrics
-        self.buffer_occupancy = Gauge(
-            "buffer_occupancy", "The occupancy of the buffer", ["agent", "buffer"]
-        )
-        self.metrics_processed = Counter(
-            "metrics_processed", "The number of metrics processed", ["agent"]
-        )
 
         if autostart:
             self.start()
