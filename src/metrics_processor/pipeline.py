@@ -151,7 +151,9 @@ class MetricsPipeline(ABC):
     )
 
     metrics_processed = Counter(
-        "metrics_processed", "Number of metrics processed", ["agent", "pipeline"]
+        "metrics_processed_pipeline",
+        "Number of metrics processed",
+        ["agent", "pipeline"],
     )
 
     def __init__(self, config=None) -> None:
