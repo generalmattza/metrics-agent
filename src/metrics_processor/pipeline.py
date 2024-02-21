@@ -185,12 +185,13 @@ class MetricsPipeline(ABC):
         results = self.process_method(metrics)
 
         end_time = time.perf_counter()
-        self.processing_time.labels(self.__class__.__name__).observe(
-            (end_time - start_time) / number_of_metrics
-        )
-        self.metrics_processed.labels("metrics_processor", self.__class__.__name__).inc(
-            number_of_metrics
-        )
+        if number_of_metrics != 0:
+            self.processing_time.labels(self.__class__.__name__).observe(
+                (end_time - start_time) / number_of_metrics
+            )
+            self.metrics_processed.labels(
+                "metrics_processor", self.__class__.__name__
+            ).inc(number_of_metrics)
         return results
 
     @abstractmethod
