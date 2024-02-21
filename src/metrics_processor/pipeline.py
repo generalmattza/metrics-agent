@@ -15,6 +15,9 @@ import json
 import yaml
 import pytz
 import logging
+import time
+
+from prometheus_client import Histogram, Counter
 
 try:
     import tomllib
@@ -30,7 +33,7 @@ PIPELINE_CONFIG_DEFAULT = "config/metric_pipelines.toml"
 
 # Helper Functions
 # *******************************************************************
-TIMEZONE_CACHE = {} # Added to help improve performance
+TIMEZONE_CACHE = {}  # Added to help improve performance
 
 
 def load_yaml_file(filepath):
@@ -42,12 +45,14 @@ def load_toml_file(filepath):
     with open(filepath, mode="rb") as fp:
         return tomllib.load(fp)
 
+
 def shorten_data(data: str, max_length: int = 75) -> str:
     """Shorten data to a maximum length."""
     if not isinstance(data, str):
         data = str(data)
     data = data.strip()
     return data[:max_length] + "..." if len(data) > max_length else data
+
 
 # Helper Functions
 # *******************************************************************
@@ -136,6 +141,7 @@ class MetricStats:
 # Pipeline Classes
 # *******************************************************************
 
+
 class MetricsPipeline(ABC):
     def __init__(self, config=None) -> None:
 
@@ -145,6 +151,15 @@ class MetricsPipeline(ABC):
         else:
             self._external_config = True
             self.config = self._load_config(PIPELINE_CONFIG_DEFAULT)
+
+        self.processing_time = Histogram(
+            "metrics_processor_processing_time",
+            "Average time taken to process a metric",
+            ["pipeline"],
+        )
+        self.metrics_processed = Counter(
+            "metrics_processed", "Number of metrics processed", ["agent", "pipeline"]
+        )
 
     def refresh_config(self):
         if self._external_config:
@@ -159,9 +174,16 @@ class MetricsPipeline(ABC):
             return None
 
     def process(self, metrics):
+        start_time = time.perf_counter()
+        number_of_metrics = len(metrics)
         self.refresh_config()
         results = self.process_method(metrics)
 
+        end_time = time.perf_counter()
+        self.processing_time.labels(self.__class__.__name__).observe(
+            (end_time - start_time) / number_of_metrics
+        )
+        self.metrics_processed.labels("metrics_processor", self.__class__.__name__).inc(number_of_metrics)
         return results
 
     @abstractmethod
@@ -210,7 +232,7 @@ class ExtraTagger(MetricsPipeline):
 
     def process_method(self, metrics):
 
-        tags_extra = load_yaml_file(self.config["extra_tags_filepath"])
+        tags_extra = self.config
 
         for metric in metrics:
             metric["tags"] = metric["tags"] | tags_extra
@@ -273,14 +295,6 @@ class Formatter(MetricsPipeline):
                     )
                     metric["fields"][k] = str(metric["fields"][k])
 
-                # try:
-                #     metric["fields"] = {format["db_fieldname"]: metric["fields"][k]}
-                # except KeyError:
-                #     # No database fieldname specified, use existing field name
-                #     logger.debug(
-                #         f'No database fieldname specified for metric {metric["measurement"]}:{metric["fields"][k]}, use existing field name'
-                #     )
-                #     continue
                 try:
                     metric["tags"] = metric["tags"] | format["tags"]
                 except KeyError:
@@ -289,26 +303,36 @@ class Formatter(MetricsPipeline):
 
         return metrics
 
-class Renamer(MetricsPipeline):
+
+class PropertyMapper(MetricsPipeline):
     def process_method(self, metrics):
-        name_mapping = load_yaml_file(self.config["name_mapping_filepath"])
-        metrics = self.rename_metrics(metrics, name_mapping)
+        property_mapping = load_yaml_file(self.config["property_mapping_filepath"])
+        metrics = self.map_metric_properties(metrics, property_mapping)
         return metrics
 
-    def rename_metrics(self, metrics, name_mapping):
-        for metric in metrics:
-            for field in metric["fields"]:
-                try:
-                    metric["fields"] = {name_mapping[field]: metric["fields"][field]}
-                except KeyError:
-                    # No database fieldname specified, use existing field name
-                    logger.debug(
-                        f'No database fieldname specified for metric {metric["measurement"]}:{metric["fields"][field]}, use existing field name'
-                    )
+    def map_metric_properties(self, metrics, property_mapping):
+        for property, mapping in property_mapping.items():
+            for metric in metrics:
+                for p in metric[property]:
+                    try:
+                        metric[property] = {mapping[p]: metric[property][p]}
+                    except KeyError:
+                        # No database fieldname specified, use existing field name
+                        logger.debug(
+                            f'No property mapping specified for metric {metric["measurement"]}:{metric[property][p]}, use existing field name'
+                        )
         return metrics
 
 
 class OutlierRemover(MetricsPipeline):
+
+    def __init__(self, config=None) -> None:
+        super().__init__(config=config)
+        self.outliers_removed = Counter(
+            "outliers_removed",
+            "Number of outliers removed",
+            ["pipeline", "field", "boundary"],
+        )
 
     def process_method(self, metrics):
         boundaries = load_yaml_file(self.config["boundaries_filepath"])
@@ -332,17 +356,25 @@ class OutlierRemover(MetricsPipeline):
                 try:
                     if value > boundary["max"]:
                         metrics_removed.append(metric)
+                        self.outliers_removed.labels(
+                            self.__class__.__name__, field, "max"
+                        ).inc()
                         continue
                 except KeyError:
                     pass
                 try:
                     if value < boundary["min"]:
                         metrics_removed.append(metric)
+                        self.outliers_removed.labels(
+                            self.__class__.__name__, field, "min"
+                        ).inc()
                         continue
                 except KeyError:
                     pass
                 metrics_filtered.append(metric)
+        number_of_outliers_removed = len(metrics_removed)
+
         logger.debug(
-            f"Removed {len(metrics_removed)} metrics: {shorten_data(str(metrics_removed))}"
+            f"Removed {number_of_outliers_removed} metrics: {shorten_data(str(metrics_removed))}"
         )
         return metrics_filtered

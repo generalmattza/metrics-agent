@@ -15,7 +15,7 @@ import logging
 from typing import Union
 from pathlib import Path
 
-
+from prometheus_client import Gauge, Counter
 from metrics_processor.exceptions import ConfigFileDoesNotExist
 
 from buffered.buffer import Buffer
@@ -132,7 +132,9 @@ class MetricsProcessor:
         )
 
         input_buffer_length: int = self.config.get("input_buffer_length", BUFFER_LENGTH)
-        output_buffer_length: int = self.config.get("output_buffer_length", BUFFER_LENGTH)
+        output_buffer_length: int = self.config.get(
+            "output_buffer_length", BUFFER_LENGTH
+        )
 
         self.batch_size_processing = self.config.get(
             "batch_size", BATCH_SIZE_PROCESSING
@@ -146,8 +148,6 @@ class MetricsProcessor:
             output_buffer = Buffer(maxlen=output_buffer_length)
         self.output_buffer: Union[list, deque, Buffer] = output_buffer
 
-        # Initialize the last sent time
-        self._last_sent_time: float = time.time()
         self.pipelines = []
         # Instantiate pipelines if not already done so
         for pipeline in pipelines:
@@ -156,6 +156,13 @@ class MetricsProcessor:
             else:
                 self.pipelines.append(pipeline)
 
+        # Initialize prometheus metrics
+        self.buffer_occupancy = Gauge(
+            "buffer_occupancy", "The occupancy of the buffer", ["agent", "buffer"]
+        )
+        self.metrics_processed = Counter(
+            "metrics_processed", "The number of metrics processed", ["agent"]
+        )
 
         if autostart:
             self.start()
@@ -169,29 +176,35 @@ class MetricsProcessor:
         logger.debug(f"Added metric to buffer: {metric_str}")
 
     def process_input_buffer(self):
-        while self.input_buffer.not_empty():
+        if self.input_buffer.not_empty():
             # dump buffer to list of metrics
             metrics = self.input_buffer.dump(self.batch_size_processing)
             for pipeline in self.pipelines:
                 logger.debug(f"Processing metrics using {pipeline}")
                 metrics = pipeline.process(metrics)
-            number_metrics_processed = len(metrics)
             self.output_buffer.extend(metrics)
+            self.metrics_processed.labels("metrics_processor").inc(
+                len(metrics)
+            )
 
     def passthrough(self):
         # If no post processors are defined, pass through the input buffer to the send buffer
-        while self.input_buffer.not_empty():
-            self.output_buffer.append(next(self.input_buffer))
+        if self.input_buffer.not_empty():
+            self.output_buffer.extend(
+                self.input_buffer.dump(self.batch_size_processing)
+            )
 
-    # from prometheus_client import start_http_server, Summary
+    def update_prometheus_metrics(self):
+        # Update prometheus metrics
+        self.buffer_occupancy.labels("metrics_processor", "input").set(
+            self.input_buffer.size()
+        )
+        self.buffer_occupancy.labels("metrics_processor", "output").set(
+            self.output_buffer.size()
+        )
 
     # Thread management methods
     # *************************************************************************
-
-    def start_sending_thread(self):
-        self.sending_thread = threading.Thread(target=self.run_sending, daemon=True)
-        self.sending_thread.start()
-        logger.debug("Started send thread")
 
     def run_processing(self):
         while True:
@@ -200,7 +213,7 @@ class MetricsProcessor:
             else:
                 self.passthrough()
 
-            time.sleep(self.update_interval)  # Adjust sleep time as needed
+            self.update_prometheus_metrics()
 
     def stop(self):
         self.processing_thread.join()
