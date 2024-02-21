@@ -181,6 +181,7 @@ class MetricsPipeline(ABC):
         start_time = time.perf_counter()
         number_of_metrics = len(metrics)
         self.refresh_config()
+
         results = self.process_method(metrics)
 
         end_time = time.perf_counter()
@@ -224,6 +225,13 @@ class AggregateStatistics(MetricsPipeline):
         ]
 
         return metrics_stats
+
+
+class FilterNone(MetricsPipeline):
+    def process_method(self, metrics):
+        # Remove all None values from metrics
+        metrics = [metric for metric in metrics if metric is not None]
+        return metrics
 
 
 class JSONReader(MetricsPipeline):
