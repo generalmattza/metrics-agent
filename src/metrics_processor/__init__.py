@@ -1,4 +1,4 @@
-__version__ = "3.0.4"
+__version__ = "3.0.5"
 
 from metrics_processor.processor import MetricsProcessor, load_config, csv_to_metrics
 
