@@ -360,18 +360,18 @@ class OutlierRemover(MetricsPipeline):
         metrics_removed = []
         for metric in metrics:
             for field in metric["fields"]:
-                try:
-                    boundary = boundaries[field]
-                except KeyError:
-                    # boundaries are note defined for metric, ignore
-                    continue
-                value = metric["fields"][field]
-                if isinstance(value, str):
-                    # If value is string, do nothing (This may be changed in future)
+                boundary = boundaries.get(field)
+                if boundary is None:
                     metrics_filtered.append(metric)
                     continue
+
+                value = metric["fields"][field]
+                if isinstance(value, str):
+                    metrics_filtered.append(metric)
+                    continue
+
                 try:
-                    if value > boundary["max"]:
+                    if "max" in boundary and value > boundary["max"]:
                         metrics_removed.append(metric)
                         self.outliers_removed.labels(
                             self.__class__.__name__, field, "max"
@@ -379,8 +379,9 @@ class OutlierRemover(MetricsPipeline):
                         continue
                 except KeyError:
                     pass
+
                 try:
-                    if value < boundary["min"]:
+                    if "min" in boundary and value < boundary["min"]:
                         metrics_removed.append(metric)
                         self.outliers_removed.labels(
                             self.__class__.__name__, field, "min"
@@ -388,7 +389,9 @@ class OutlierRemover(MetricsPipeline):
                         continue
                 except KeyError:
                     pass
+
                 metrics_filtered.append(metric)
+
         number_of_outliers_removed = len(metrics_removed)
 
         logger.debug(
