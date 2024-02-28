@@ -363,7 +363,8 @@ class OutlierRemover(MetricsPipeline):
                 try:
                     boundary = boundaries[field]
                 except KeyError:
-                    pass
+                    # boundaries are note defined for metric, ignore
+                    continue
                 value = metric["fields"][field]
                 if isinstance(value, str):
                     # If value is string, do nothing (This may be changed in future)
