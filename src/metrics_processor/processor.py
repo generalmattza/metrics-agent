@@ -108,10 +108,14 @@ class MetricsProcessor:
 
     # Initialize prometheus metrics
     buffer_occupancy = Gauge(
-        "buffer_occupancy", "The occupancy of the buffer", ["agent", "buffer"]
+        "metricsprocessor_buffer_occupancy",
+        "The occupancy of the buffer",
+        ["agent", "buffer"],
     )
     metrics_processed = Counter(
-        "metrics_processed", "The number of metrics processed", ["agent"]
+        "metricsprocessor_metrics_processed",
+        "The number of metrics processed",
+        ["agent"],
     )
 
     def __init__(
