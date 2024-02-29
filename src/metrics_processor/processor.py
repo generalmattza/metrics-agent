@@ -183,9 +183,14 @@ class MetricsProcessor:
         if self.input_buffer.not_empty():
             # dump buffer to list of metrics
             metrics = self.input_buffer.dump(self.batch_size_processing)
+            number_metrics_initial = len(metrics)
             for pipeline in self.pipelines:
                 logger.debug(f"Processing metrics using {pipeline}")
                 metrics = pipeline.process(metrics)
+            number_metrics_final = len(metrics)
+            logger.info(
+                f"Processed {number_metrics_initial} metrics to {number_metrics_final} metrics"
+            )
             self.output_buffer.extend(metrics)
             self.metrics_processed.labels("metrics_processor").inc(len(metrics))
 
