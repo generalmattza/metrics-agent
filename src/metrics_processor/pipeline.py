@@ -193,9 +193,9 @@ class MetricsPipeline(ABC):
         end_time = time.perf_counter()
 
         if number_of_metrics != 0:
-            self.processing_time.labels(agent="metrics_processor", pipeline=self.__class__.__name__).observe(
-                (end_time - start_time) / number_of_metrics
-            )
+            self.processing_time.labels(
+                agent="metrics_processor", pipeline=self.__class__.__name__
+            ).observe((end_time - start_time) / number_of_metrics)
             self.metrics_processed.labels(
                 agent="metrics_processor", pipeline=self.__class__.__name__
             ).inc(number_of_metrics)
@@ -242,7 +242,10 @@ class FilterNone(MetricsPipeline):
         metrics = [metric for metric in metrics if metric is not None]
         number_metrics_final = len(metrics)
         self.metrics_filtered.labels(
-            agent="metrics_processor", pipeline=self.__class__.__name__, id="None", reason="Invalid metric"
+            agent="metrics_processor",
+            pipeline=self.__class__.__name__,
+            id="None",
+            reason="Invalid metric",
         ).inc(number_metrics_initial - number_metrics_final)
         return metrics
 
@@ -318,7 +321,7 @@ class Formatter(MetricsPipeline):
                     metric["fields"][k] = str(metric["fields"][k])
                 else:
                     logger.debug(
-                        f"Metric:{metric["fields"][k]} - Type not specified in metric format, defaulting to str"
+                        f"Metric:{metric['fields'][k]} - Type not specified in metric format, defaulting to str"
                     )
                     metric["fields"][k] = str(metric["fields"][k])
 
@@ -359,7 +362,6 @@ class OutlierRemover(MetricsPipeline):
     def __init__(self, config=None) -> None:
         super().__init__(config=config)
 
-
     def process_method(self, metrics):
         boundaries = load_yaml_file(self.config["boundaries_filepath"])
         metrics = self.remove_outliers(metrics, boundaries)
@@ -384,7 +386,10 @@ class OutlierRemover(MetricsPipeline):
                     if "max" in boundary and value > boundary["max"]:
                         metrics_removed.append(metric)
                         self.metrics_filtered.labels(
-                            agent="metrics_processor", pipeline=self.__class__.__name__, id=field, reason="Value excceeded max"
+                            agent="metrics_processor",
+                            pipeline=self.__class__.__name__,
+                            id=field,
+                            reason="Value excceeded max",
                         ).inc()
                         continue
                 except KeyError:
@@ -394,7 +399,10 @@ class OutlierRemover(MetricsPipeline):
                     if "min" in boundary and value < boundary["min"]:
                         metrics_removed.append(metric)
                         self.metrics_filtered.labels(
-                            agent="metrics_processor", pipeline=self.__class__.__name__, id=field, reason="Value below min"
+                            agent="metrics_processor",
+                            pipeline=self.__class__.__name__,
+                            id=field,
+                            reason="Value below min",
                         ).inc()
                         continue
                 except KeyError:
