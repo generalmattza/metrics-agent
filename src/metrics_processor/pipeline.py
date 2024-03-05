@@ -275,6 +275,7 @@ class TimeLocalizer(MetricsPipeline):
     def process_method(self, metrics):
         self.local_tz = self.config["local_tz"]
         for metric in metrics:
+            logger.debug("TimeLocalizer: Raw time is %s", metric["time"])
             metric["time"] = localize_timestamp(metric["time"], self.local_tz)
         return metrics
 
