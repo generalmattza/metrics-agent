@@ -180,18 +180,21 @@ class MetricsProcessor:
         logger.debug(f"Added metric to buffer: {metric_str}")
 
     def process_input_buffer(self):
-        if self.input_buffer.not_empty():
-            # dump buffer to list of metrics
-            metrics = self.input_buffer.dump(self.batch_size_processing)
-            for pipeline in self.pipelines:
-                number_metrics_initial = len(metrics)
-                metrics = pipeline.process(metrics)
-                number_metrics_final = len(metrics)
-                logger.info(
-                    f"Processed {number_metrics_initial} metrics using {pipeline}. {number_metrics_final} metrics output"
-                )
-            self.output_buffer.extend(metrics)
-            self.metrics_processed.labels("metrics_processor").inc(len(metrics))
+        try:
+            if self.input_buffer.not_empty():
+                # dump buffer to list of metrics
+                metrics = self.input_buffer.dump(self.batch_size_processing)
+                for pipeline in self.pipelines:
+                    number_metrics_initial = len(metrics)
+                    metrics = pipeline.process(metrics)
+                    number_metrics_final = len(metrics)
+                    logger.info(
+                        f"Processed {number_metrics_initial} metrics using {pipeline}. {number_metrics_final} metrics output"
+                    )
+                self.output_buffer.extend(metrics)
+                self.metrics_processed.labels("metrics_processor").inc(len(metrics))
+        except Exception as e:
+            logger.error(f"Error processing metrics: {e}")
 
     def passthrough(self):
         # If no post processors are defined, pass through the input buffer to the send buffer
