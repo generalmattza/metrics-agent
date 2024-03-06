@@ -194,7 +194,7 @@ class MetricsProcessor:
                 self.output_buffer.extend(metrics)
                 self.metrics_processed.labels("metrics_processor").inc(len(metrics))
         except Exception as e:
-            logger.error(f"Error processing metrics: {e}")
+            logger.error(f"Error processing metrics: {e}", extra={"metrics": metrics})
 
     def passthrough(self):
         # If no post processors are defined, pass through the input buffer to the send buffer
