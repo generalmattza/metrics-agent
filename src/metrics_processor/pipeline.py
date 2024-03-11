@@ -147,13 +147,19 @@ class MetricsPipeline(ABC):
     processing_time = Histogram(
         "metrics_processor_processing_time",
         "Average time taken to process a metric",
-        ["pipeline"],
+        ["agent", "pipeline"],
     )
 
     metrics_processed = Counter(
         "metrics_processed_pipeline",
         "Number of metrics processed",
         ["agent", "pipeline"],
+    )
+
+    metrics_filtered = Counter(
+        "metricsprocessor_metrics_filtered",
+        "Number of metrics filtered out",
+        ["agent", "pipeline", "id", "reason"],
     )
 
     def __init__(self, config=None) -> None:
@@ -187,11 +193,11 @@ class MetricsPipeline(ABC):
         end_time = time.perf_counter()
 
         if number_of_metrics != 0:
-            self.processing_time.labels(self.__class__.__name__).observe(
-                (end_time - start_time) / number_of_metrics
-            )
+            self.processing_time.labels(
+                agent="metrics_processor", pipeline=self.__class__.__name__
+            ).observe((end_time - start_time) / number_of_metrics)
             self.metrics_processed.labels(
-                "metrics_processor", self.__class__.__name__
+                agent="metrics_processor", pipeline=self.__class__.__name__
             ).inc(number_of_metrics)
         return results
 
@@ -232,7 +238,15 @@ class AggregateStatistics(MetricsPipeline):
 class FilterNone(MetricsPipeline):
     def process_method(self, metrics):
         # Remove all None values from metrics
+        number_metrics_initial = len(metrics)
         metrics = [metric for metric in metrics if metric is not None]
+        number_metrics_final = len(metrics)
+        self.metrics_filtered.labels(
+            agent="metrics_processor",
+            pipeline=self.__class__.__name__,
+            id="None",
+            reason="Invalid metric",
+        ).inc(number_metrics_initial - number_metrics_final)
         return metrics
 
 
@@ -261,6 +275,7 @@ class TimeLocalizer(MetricsPipeline):
     def process_method(self, metrics):
         self.local_tz = self.config["local_tz"]
         for metric in metrics:
+            # logger.debug("TimeLocalizer: Raw time is %s", metric["time"])
             metric["time"] = localize_timestamp(metric["time"], self.local_tz)
         return metrics
 
@@ -306,8 +321,8 @@ class Formatter(MetricsPipeline):
                 elif format["type"] == "str":
                     metric["fields"][k] = str(metric["fields"][k])
                 else:
-                    logger.warning(
-                        "type not specified in metric format, defaulting to str"
+                    logger.debug(
+                        f"Metric:{metric['fields'][k]} - Type not specified in metric format, defaulting to str"
                     )
                     metric["fields"][k] = str(metric["fields"][k])
 
@@ -332,6 +347,9 @@ class PropertyMapper(MetricsPipeline):
                 for p in metric[property]:
                     try:
                         metric[property] = {mapping[p]: metric[property][p]}
+                        logger.debug(
+                            f'Remapped property {property} to {mapping[p]} for metric {metric["measurement"]}'
+                        )
                     except KeyError:
                         # No database fieldname specified, use existing field name
                         logger.debug(
@@ -344,11 +362,6 @@ class OutlierRemover(MetricsPipeline):
 
     def __init__(self, config=None) -> None:
         super().__init__(config=config)
-        self.outliers_removed = Counter(
-            "outliers_removed",
-            "Number of outliers removed",
-            ["pipeline", "field", "boundary"],
-        )
 
     def process_method(self, metrics):
         boundaries = load_yaml_file(self.config["boundaries_filepath"])
@@ -360,34 +373,44 @@ class OutlierRemover(MetricsPipeline):
         metrics_removed = []
         for metric in metrics:
             for field in metric["fields"]:
-                try:
-                    boundary = boundaries[field]
-                except KeyError:
-                    pass
-                value = metric["fields"][field]
-                if isinstance(value, str):
-                    # If value is string, do nothing (This may be changed in future)
+                boundary = boundaries.get(field)
+                if boundary is None:
                     metrics_filtered.append(metric)
                     continue
+
+                value = metric["fields"][field]
+                if isinstance(value, str):
+                    metrics_filtered.append(metric)
+                    continue
+
                 try:
-                    if value > boundary["max"]:
+                    if "max" in boundary and value > boundary["max"]:
                         metrics_removed.append(metric)
-                        self.outliers_removed.labels(
-                            self.__class__.__name__, field, "max"
+                        self.metrics_filtered.labels(
+                            agent="metrics_processor",
+                            pipeline=self.__class__.__name__,
+                            id=field,
+                            reason="Value excceeded max",
                         ).inc()
                         continue
                 except KeyError:
                     pass
+
                 try:
-                    if value < boundary["min"]:
+                    if "min" in boundary and value < boundary["min"]:
                         metrics_removed.append(metric)
-                        self.outliers_removed.labels(
-                            self.__class__.__name__, field, "min"
+                        self.metrics_filtered.labels(
+                            agent="metrics_processor",
+                            pipeline=self.__class__.__name__,
+                            id=field,
+                            reason="Value below min",
                         ).inc()
                         continue
                 except KeyError:
                     pass
+
                 metrics_filtered.append(metric)
+
         number_of_outliers_removed = len(metrics_removed)
 
         logger.debug(
