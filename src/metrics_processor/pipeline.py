@@ -9,7 +9,7 @@
 from __future__ import annotations
 from dataclasses import dataclass, asdict, field, is_dataclass
 from abc import ABC, abstractmethod
-from datetime import datetime
+from datetime import datetime, timedelta
 import pandas as pd
 import json
 import yaml
@@ -99,21 +99,27 @@ def get_timezone(timezone_str):
     return TIMEZONE_CACHE[timezone_str]
 
 
-def localize_timestamp(timestamp, timezone_str="UTC") -> datetime:
+def localize_timestamp(timestamp, timezone_str="UTC", offset=(0,0,0)) -> datetime:
     """
     Localize a timestamp to a timezone
     :param timestamp: The timestamp to localize
     :param timezone_str: The timezone to localize to
     :return: The localized timestamp
     """
-
+    # Convert to datetime if not already
     if isinstance(timestamp, (int, float)):
         dt_utc = datetime.fromtimestamp(timestamp)
     elif isinstance(timestamp, datetime):
         dt_utc = timestamp
     else:
         raise ValueError("timestamp must be a float, int, or datetime object")
+    
+    # Apply offset in the form (0,0,0) representing (hours, minutes, seconds)
+    dt_utc = dt_utc + timedelta(hours=offset[0], minutes=offset[1], seconds=offset[2])
+
+    # Retrieve timezone. Previously used timezones are cached
     timezone = get_timezone(timezone_str)
+
     return int(timezone.localize(dt_utc).timestamp())
 
 
@@ -187,8 +193,11 @@ class MetricsPipeline(ABC):
         start_time = time.perf_counter()
         number_of_metrics = len(metrics)
         self.refresh_config()
-
-        results = self.process_method(metrics)
+        if metrics:
+            results = self.process_method(metrics)
+        else:
+            logger.info(f"No metrics to process in {self.__class__.__name__}. Continuing")
+            return None
 
         end_time = time.perf_counter()
 
@@ -276,7 +285,7 @@ class TimeLocalizer(MetricsPipeline):
         self.local_tz = self.config["local_tz"]
         for metric in metrics:
             # logger.debug("TimeLocalizer: Raw time is %s", metric["time"])
-            metric["time"] = localize_timestamp(metric["time"], self.local_tz)
+            metric["time"] = localize_timestamp(metric["time"], timezone_str=self.local_tz, offset=self.config["offset"])
         return metrics
 
 
