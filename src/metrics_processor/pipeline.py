@@ -287,9 +287,11 @@ class TimeLocalizer(MetricsPipeline):
             # logger.debug("TimeLocalizer: Raw time is %s", metric["time"])
             local_time = localize_timestamp(metric["time"], timezone_str=self.local_tz, offset=self.config["offset"])
             # if local_time differs by more than 59 minutes from actual local time, then offset by one hour using datime.timedelta
-            reverse_offset = [-offset for offset in self.config["offset"]]
             if abs(local_time - int(time.time())) > 3540:
+                reverse_offset = [-offset for offset in self.config["offset"]]
                 local_time = datetime.fromtimestamp(local_time) + timedelta(hours=reverse_offset[0], minutes=reverse_offset[1], seconds=reverse_offset[2])
+                local_time =local_time.timestamp()
+            metric["time"] = local_time
         return metrics
 
 
