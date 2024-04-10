@@ -1,5 +1,6 @@
 [TimeLocalizer]
 local_tz = "America/Vancouver"
+offset = [1, 0, 0]             # time offset in hours, minutes, seconds
 
 [ExtraTagger]
 shot_id = "xxxxxx"
