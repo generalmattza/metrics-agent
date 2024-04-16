@@ -359,7 +359,7 @@ class Formatter(MetricsPipeline):
 
 
 class PropertyMapper(MetricsPipeline):
-    def __init__(self, config):
+    def __init__(self, config=None):
         super().__init__(config)
         self.property_mapping = self.load_property_mapping()
 
