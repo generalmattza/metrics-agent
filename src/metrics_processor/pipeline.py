@@ -99,7 +99,7 @@ def get_timezone(timezone_str):
     return TIMEZONE_CACHE[timezone_str]
 
 
-def localize_timestamp(timestamp, timezone_str="UTC", offset=(0,0,0)) -> datetime:
+def localize_timestamp(timestamp, timezone_str="UTC", offset=(0, 0, 0)) -> datetime:
     """
     Localize a timestamp to a timezone
     :param timestamp: The timestamp to localize
@@ -113,7 +113,7 @@ def localize_timestamp(timestamp, timezone_str="UTC", offset=(0,0,0)) -> datetim
         dt_utc = timestamp
     else:
         raise ValueError("timestamp must be a float, int, or datetime object")
-    
+
     # Apply offset in the form (0,0,0) representing (hours, minutes, seconds)
     dt_utc = dt_utc + timedelta(hours=offset[0], minutes=offset[1], seconds=offset[2])
 
@@ -196,7 +196,9 @@ class MetricsPipeline(ABC):
         if metrics:
             results = self.process_method(metrics)
         else:
-            logger.info(f"No metrics to process in {self.__class__.__name__}. Continuing")
+            logger.info(
+                f"No metrics to process in {self.__class__.__name__}. Continuing"
+            )
             return None
 
         end_time = time.perf_counter()
@@ -285,12 +287,18 @@ class TimeLocalizer(MetricsPipeline):
         self.local_tz = self.config["local_tz"]
         for metric in metrics:
             # logger.debug("TimeLocalizer: Raw time is %s", metric["time"])
-            local_time = localize_timestamp(metric["time"], timezone_str=self.local_tz, offset=self.config["offset"])
+            local_time = localize_timestamp(
+                metric["time"], timezone_str=self.local_tz, offset=self.config["offset"]
+            )
             # if local_time differs by more than 59 minutes from actual local time, then offset by one hour using datime.timedelta
             if abs(local_time - int(time.time())) > 3540:
                 reverse_offset = [-offset for offset in self.config["offset"]]
-                local_time = datetime.fromtimestamp(local_time) + timedelta(hours=reverse_offset[0], minutes=reverse_offset[1], seconds=reverse_offset[2])
-                local_time =local_time.timestamp()
+                local_time = datetime.fromtimestamp(local_time) + timedelta(
+                    hours=reverse_offset[0],
+                    minutes=reverse_offset[1],
+                    seconds=reverse_offset[2],
+                )
+                local_time = local_time.timestamp()
             metric["time"] = local_time
         return metrics
 
@@ -351,26 +359,69 @@ class Formatter(MetricsPipeline):
 
 
 class PropertyMapper(MetricsPipeline):
-    def process_method(self, metrics):
-        property_mapping = load_yaml_file(self.config["property_mapping_filepath"])
-        metrics = self.map_metric_properties(metrics, property_mapping)
-        return metrics
+    def __init__(self, config):
+        super().__init__(config)
+        self.property_mapping = self.load_property_mapping()
 
-    def map_metric_properties(self, metrics, property_mapping):
-        for property, mapping in property_mapping.items():
-            for metric in metrics:
-                for p in metric[property]:
-                    try:
-                        metric[property] = {mapping[p]: metric[property][p]}
-                        logger.debug(
-                            f'Remapped property {property} to {mapping[p]} for metric {metric["measurement"]}'
-                        )
-                    except KeyError:
-                        # No database fieldname specified, use existing field name
-                        logger.debug(
-                            f'No property mapping specified for metric {metric["measurement"]}:{metric[property][p]}, use existing field name'
-                        )
-        return metrics
+    def load_property_mapping(self):
+        # Load the property mapping only once during initialization
+        return load_yaml_file(self.config["property_mapping_filepath"])
+
+    def process_method(self, metrics):
+        # Directly use the loaded property mapping
+        return self.map_metric_properties(metrics)
+
+    def map_metric_properties(self, metrics):
+        # Initialize an empty list to store the updated metrics
+        updated_metrics = []
+
+        for metric in metrics:
+            new_metric = {}
+            for property, values in metric.items():
+                if property in self.property_mapping:
+                    # Map each property using the preloaded mapping
+                    new_values = {}
+                    for p in values:
+                        if p in self.property_mapping[property]:
+                            new_key = self.property_mapping[property][p]
+                            new_values[new_key] = values[p]
+                            logger.debug(
+                                f'Remapped property {property} to {new_key} for metric {metric["measurement"]}'
+                            )
+                        else:
+                            new_values[p] = values[p]
+                            logger.debug(
+                                f'No property mapping specified for {metric["measurement"]}:{values[p]}, use existing field name'
+                            )
+                    new_metric[property] = new_values
+                else:
+                    new_metric[property] = values
+            updated_metrics.append(new_metric)
+
+        return updated_metrics
+
+
+# class PropertyMapper(MetricsPipeline):
+#     def process_method(self, metrics):
+#         property_mapping = load_yaml_file(self.config["property_mapping_filepath"])
+#         metrics = self.map_metric_properties(metrics, property_mapping)
+#         return metrics
+
+#     def map_metric_properties(self, metrics, property_mapping):
+#         for property, mapping in property_mapping.items():
+#             for metric in metrics:
+#                 for p in metric[property]:
+#                     try:
+#                         metric[property] = {mapping[p]: metric[property][p]}
+#                         logger.debug(
+#                             f'Remapped property {property} to {mapping[p]} for metric {metric["measurement"]}'
+#                         )
+#                     except KeyError:
+#                         # No database fieldname specified, use existing field name
+#                         logger.debug(
+#                             f'No property mapping specified for metric {metric["measurement"]}:{metric[property][p]}, use existing field name'
+#                         )
+#         return metrics
 
 
 class OutlierRemover(MetricsPipeline):
