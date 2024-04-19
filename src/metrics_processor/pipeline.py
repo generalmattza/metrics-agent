@@ -195,8 +195,8 @@ class MetricsPipeline(ABC):
         number_of_metrics = len(metrics)
         self.refresh_config()
         if metrics:
+            metrics = self.remove_none(metrics)
             results = self.process_method(metrics)
-            results = self.remove_none(results)
         else:
             logger.info(
                 f"No metrics to process in {self.__class__.__name__}. Continuing"
