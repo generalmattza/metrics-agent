@@ -266,12 +266,10 @@ from multiprocessing import Pool
 
 
 class JSONReader(MetricsPipeline):
-    def __init__(self, num_processes=None):
-        self.num_processes = num_processes
 
     def process_method(self, metrics):
         if self.num_processes:
-            with Pool(self.num_processes) as pool:
+            with Pool(self.config.num_processes) as pool:
                 results = pool.map(self.parse_json, metrics)
             return results
         else:

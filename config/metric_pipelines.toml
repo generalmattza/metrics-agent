@@ -16,3 +16,6 @@ boundaries_filepath = "config/metric_boundaries.yaml"
 
 [PropertyMapper]
 property_mapping_filepath = "config/property_mapping.yaml"
+
+[JSONReader]
+num_processes = 16
