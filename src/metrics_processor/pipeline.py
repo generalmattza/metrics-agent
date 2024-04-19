@@ -196,6 +196,7 @@ class MetricsPipeline(ABC):
         self.refresh_config()
         if metrics:
             results = self.process_method(metrics)
+            results = self.remove_none(results)
         else:
             logger.info(
                 f"No metrics to process in {self.__class__.__name__}. Continuing"
@@ -218,6 +219,19 @@ class MetricsPipeline(ABC):
 
     def __repr__(self):
         return self.__class__.__name__
+
+    def remove_none(self, metrics):
+        # Remove all None values from metrics
+        number_metrics_initial = len(metrics)
+        metrics = [metric for metric in metrics if metric is not None]
+        number_metrics_final = len(metrics)
+        self.metrics_filtered.labels(
+            agent="metrics_processor",
+            pipeline=self.__class__.__name__,
+            id="None",
+            reason="Invalid metric",
+        ).inc(number_metrics_initial - number_metrics_final)
+        return metrics
 
 
 class AggregateStatistics(MetricsPipeline):
@@ -245,21 +259,6 @@ class AggregateStatistics(MetricsPipeline):
         ]
 
         return metrics_stats
-
-
-class FilterNone(MetricsPipeline):
-    def process_method(self, metrics):
-        # Remove all None values from metrics
-        number_metrics_initial = len(metrics)
-        metrics = [metric for metric in metrics if metric is not None]
-        number_metrics_final = len(metrics)
-        self.metrics_filtered.labels(
-            agent="metrics_processor",
-            pipeline=self.__class__.__name__,
-            id="None",
-            reason="Invalid metric",
-        ).inc(number_metrics_initial - number_metrics_final)
-        return metrics
 
 
 class JSONReader(MetricsPipeline):
