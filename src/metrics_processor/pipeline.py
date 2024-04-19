@@ -265,8 +265,9 @@ class FilterNone(MetricsPipeline):
 class JSONReader(MetricsPipeline):
 
     def process_method(self, metrics):
-        if self.config.get("num_processes"):
-            with Pool(self.config.num_processes) as pool:
+        num_processes = self.config.get("num_processes")
+        if num_processes:
+            with Pool(num_processes) as pool:
                 results = pool.map(self.parse_json, metrics)
             return results
         else:
