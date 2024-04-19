@@ -12,7 +12,6 @@ from abc import ABC, abstractmethod
 from datetime import datetime, timedelta
 import pandas as pd
 import json
-from multiprocessing import Pool
 import yaml
 import pytz
 import logging
@@ -196,7 +195,7 @@ class MetricsPipeline(ABC):
         self.refresh_config()
 
         metrics = self.remove_none(metrics)
-        
+
         if metrics:
             results = self.process_method(metrics)
         else:
@@ -266,19 +265,10 @@ class AggregateStatistics(MetricsPipeline):
 class JSONReader(MetricsPipeline):
 
     def process_method(self, metrics):
-        num_processes = self.config.get("num_processes")
-        if num_processes:
-            with Pool(num_processes) as pool:
-                results = pool.map(self.parse_json, metrics)
-            return results
-        else:
-            return [self.parse_json(metric) for metric in metrics]
-
-    @staticmethod
-    def parse_json(metric):
-        if isinstance(metric, str):
-            return json.loads(metric)
-        return metric
+        for i, metric in enumerate(metrics):
+            if isinstance(metric, str):
+                metrics[i] = json.loads(metric)
+        return metrics
 
 
 class ExtraTagger(MetricsPipeline):
