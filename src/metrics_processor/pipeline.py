@@ -194,8 +194,10 @@ class MetricsPipeline(ABC):
         start_time = time.perf_counter()
         number_of_metrics = len(metrics)
         self.refresh_config()
+
+        metrics = self.remove_none(metrics)
+        
         if metrics:
-            metrics = self.remove_none(metrics)
             results = self.process_method(metrics)
         else:
             logger.info(
