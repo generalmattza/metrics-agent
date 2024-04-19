@@ -12,6 +12,7 @@ from abc import ABC, abstractmethod
 from datetime import datetime, timedelta
 import pandas as pd
 import json
+from multiprocessing import Pool
 import yaml
 import pytz
 import logging
@@ -259,10 +260,6 @@ class FilterNone(MetricsPipeline):
             reason="Invalid metric",
         ).inc(number_metrics_initial - number_metrics_final)
         return metrics
-
-
-import json
-from multiprocessing import Pool
 
 
 class JSONReader(MetricsPipeline):
