@@ -261,12 +261,27 @@ class FilterNone(MetricsPipeline):
         return metrics
 
 
+import json
+from multiprocessing import Pool
+
+
 class JSONReader(MetricsPipeline):
+    def __init__(self, num_processes=None):
+        self.num_processes = num_processes
+
     def process_method(self, metrics):
-        for i, metric in enumerate(metrics):
-            if isinstance(metric, str):
-                metrics[i] = json.loads(metric)
-        return metrics
+        if self.num_processes:
+            with Pool(self.num_processes) as pool:
+                results = pool.map(self.parse_json, metrics)
+            return results
+        else:
+            return [self.parse_json(metric) for metric in metrics]
+
+    @staticmethod
+    def parse_json(metric):
+        if isinstance(metric, str):
+            return json.loads(metric)
+        return metric
 
 
 class ExtraTagger(MetricsPipeline):
