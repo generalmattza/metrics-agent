@@ -380,19 +380,10 @@ class PropertyMapper(MetricsPipeline):
             for property, values in metric.items():
                 if property in self.property_mapping:
                     # Map each property using the preloaded mapping
-                    new_values = {}
-                    for p in values:
-                        if p in self.property_mapping[property]:
-                            new_key = self.property_mapping[property][p]
-                            new_values[new_key] = values[p]
-                            logger.debug(
-                                f'Remapped property {property} to {new_key} for metric {metric["measurement"]}'
-                            )
-                        else:
-                            new_values[p] = values[p]
-                            logger.debug(
-                                f'No property mapping specified for {metric["measurement"]}:{values[p]}, use existing field name'
-                            )
+                    new_values = {
+                        self.property_mapping[property].get(p, p): values[p]
+                        for p in values
+                    }
                     new_metric[property] = new_values
                 else:
                     new_metric[property] = values
@@ -400,28 +391,34 @@ class PropertyMapper(MetricsPipeline):
 
         return updated_metrics
 
+    # def map_metric_properties(self, metrics):
+    #     # Initialize an empty list to store the updated metrics
+    #     updated_metrics = []
 
-# class PropertyMapper(MetricsPipeline):
-#     def process_method(self, metrics):
-#         property_mapping = load_yaml_file(self.config["property_mapping_filepath"])
-#         metrics = self.map_metric_properties(metrics, property_mapping)
-#         return metrics
+    #     for metric in metrics:
+    #         new_metric = {}
+    #         for property, values in metric.items():
+    #             if property in self.property_mapping:
+    #                 # Map each property using the preloaded mapping
+    #                 new_values = {}
+    #                 for p in values:
+    #                     if p in self.property_mapping[property]:
+    #                         new_key = self.property_mapping[property][p]
+    #                         new_values[new_key] = values[p]
+    #                         logger.debug(
+    #                             f'Remapped property {property} to {new_key} for metric {metric["measurement"]}'
+    #                         )
+    #                     else:
+    #                         new_values[p] = values[p]
+    #                         logger.debug(
+    #                             f'No property mapping specified for {metric["measurement"]}:{values[p]}, use existing field name'
+    #                         )
+    #                 new_metric[property] = new_values
+    #             else:
+    #                 new_metric[property] = values
+    #         updated_metrics.append(new_metric)
 
-#     def map_metric_properties(self, metrics, property_mapping):
-#         for property, mapping in property_mapping.items():
-#             for metric in metrics:
-#                 for p in metric[property]:
-#                     try:
-#                         metric[property] = {mapping[p]: metric[property][p]}
-#                         logger.debug(
-#                             f'Remapped property {property} to {mapping[p]} for metric {metric["measurement"]}'
-#                         )
-#                     except KeyError:
-#                         # No database fieldname specified, use existing field name
-#                         logger.debug(
-#                             f'No property mapping specified for metric {metric["measurement"]}:{metric[property][p]}, use existing field name'
-#                         )
-#         return metrics
+    #     return updated_metrics
 
 
 class OutlierRemover(MetricsPipeline):

@@ -3,8 +3,6 @@ import random
 from datetime import datetime, timedelta
 from itertools import islice
 
-from metrics_processor.metric import Metric
-
 
 INFLUXDB_TESTING_CONFIG_FILEPATH = "test/influxdb_testing_config.toml"
 LOCAL_TZ = "America/Vancouver"
@@ -44,7 +42,7 @@ def generate_random_dataset_timed(
     time = parse_datetime_input(start_time)
 
     random_dataset = [
-        Metric(
+        dict(
             name="random_dataset",
             value=random.random(),
             time=time + timedelta(seconds=period * i),
