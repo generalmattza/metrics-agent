@@ -12,6 +12,7 @@ from abc import ABC, abstractmethod
 from datetime import datetime, timedelta
 import pandas as pd
 import json
+from multiprocessing import Pool
 import yaml
 import pytz
 import logging
@@ -261,14 +262,10 @@ class FilterNone(MetricsPipeline):
         return metrics
 
 
-import json
-from multiprocessing import Pool
-
-
 class JSONReader(MetricsPipeline):
 
     def process_method(self, metrics):
-        if self.num_processes:
+        if self.num_processes.get("num_processes"):
             with Pool(self.config.num_processes) as pool:
                 results = pool.map(self.parse_json, metrics)
             return results
