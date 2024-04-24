@@ -495,6 +495,7 @@ class BinaryOperations(MetricsPipeline):
 
     def operations(self, metrics, operation_list):
         for operation in operation_list:
+            operation = operation_list[operation]
             op = operation["operation"]
             operands = operation["operands"]
             operands = [metric for metric in metrics if metric["name"] in operands]

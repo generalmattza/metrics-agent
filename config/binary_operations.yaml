@@ -1,8 +1,4 @@
-# operation:
-#   operation: add
-#   input1: input1
-#   input2: input2
-#   output: output
+
 
 lower_pressure_minimum:
   operation: min
