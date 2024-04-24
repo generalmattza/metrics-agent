@@ -482,3 +482,58 @@ class OutlierRemover(MetricsPipeline):
             f"Removed {number_of_outliers_removed} metrics: {shorten_data(str(metrics_removed))}"
         )
         return metrics_filtered
+
+
+class BinaryOperations(MetricsPipeline):
+
+    config_filepath_key = "binary_operations_filepath"
+
+    def process_method(self, metrics):
+        operation_list = load_yaml_file(self.config[self.config_filepath_key])
+        metrics = self.operations(metrics, operation_list)
+        return metrics
+
+    def operations(self, metrics, operation_list):
+        for operation in operation_list:
+            op = operation["operation"]
+            operands = operation["operands"]
+            operands = [metric for metric in metrics if metric["name"] in operands]
+            operands_value = [operand["fields"]["value"] for operand in operands]
+            operands_time = [operand["time"] for operand in operands]
+            time = None
+            try:
+                if op == "add":
+                    result = sum(operands_value)
+                elif op == "subtract":
+                    result = operands_value[0] - operands_value[1]
+                elif op == "multiply":
+                    result = operands_value[0] * operands_value[1]
+                elif op == "divide":
+                    if operands_value[1] == 0:
+                        raise ValueError("Division by zero is not allowed")
+                    result = operands_value[0] / operands_value[1]
+                elif op == "max":
+                    result = max(operands_value)
+                elif op == "min":
+                    result = min(operands_value)
+                else:
+                    raise ValueError("Invalid operation")
+
+                try:
+                    time = max(operands_time)
+                except ValueError:
+                    time = datetime.now()
+
+                new_metric = {
+                    "measurement": operands[0]["measurement"],
+                    "fields": {operation["result"]: result},
+                    "tags": operands[0].get("tags", {}),
+                    "time": time,
+                }
+                metrics.append(new_metric)
+
+            except ValueError as e:
+                logging.error(f"Error in binary operation: {e}")
+                continue
+
+        return metrics

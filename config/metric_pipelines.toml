@@ -19,3 +19,6 @@ property_mapping_filepath = "config/property_mapping.yaml"
 
 [JSONReader]
 num_processes = 16
+
+[BinaryOperation]
+binary_operations_filepath = "config/binary_operations.yaml"
