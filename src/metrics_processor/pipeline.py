@@ -498,9 +498,15 @@ class BinaryOperations(MetricsPipeline):
             operation = operation_list[operation]
             op = operation["operation"]
             operands = operation["operands"]
-            operands = [metric for metric in metrics if metric["name"] in operands]
-            operands_value = [operand["fields"]["value"] for operand in operands]
-            operands_time = [operand["time"] for operand in operands]
+            operands_metrics = []
+            for metric in metrics:
+                for field in metric["fields"]:
+                    if field in operands:
+                        operands_metrics.append(metric)
+            operands_value = [
+                operand["fields"]["value"] for operand in operands_metrics
+            ]
+            operands_time = [operand["time"] for operand in operands_metrics]
             time = None
             try:
                 if op == "add":
