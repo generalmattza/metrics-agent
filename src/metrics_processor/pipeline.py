@@ -503,9 +503,7 @@ class BinaryOperations(MetricsPipeline):
                 for field in metric["fields"]:
                     if field in operands:
                         operands_metrics.append(metric)
-            operands_value = [
-                operand["fields"]["value"] for operand in operands_metrics
-            ]
+            operands_value = [next(operand["fields"]) for operand in operands_metrics]
             operands_time = [operand["time"] for operand in operands_metrics]
             time = None
             try:
@@ -542,5 +540,54 @@ class BinaryOperations(MetricsPipeline):
             except ValueError as e:
                 logging.error(f"Error in binary operation: {e}")
                 continue
+
+        return metrics
+
+
+class PropertyConstructor(MetricsPipeline):
+
+    def __init__(self, config=None) -> None:
+        super().__init__(config=config)
+        self.property_recipes = self.config["property_recipes"]
+
+    def process_method(self, metrics):
+
+        def build_properties(recipes, metric):
+
+            # Check if metric has more than one field
+            if len(metric["fields"]) > 1:
+                message = "Metric has more than one field, cannot build properties. This is resolved by applying FieldExpander before PropertyConstructor"
+                logger.error(message)
+                raise ValueError(message)
+
+            new_fields = {}
+
+            for property, structure in recipes.items():
+                property_fields = structure.split("/")
+                try:
+                    property_value = []
+                    for field in property_fields:
+                        if field == "field":
+                            property_value.append(next(iter(metric["fields"])))
+                        else:
+                            property_value.append(metric[field])
+                    property_value = "/".join(property_value)
+                except KeyError:
+                    message = f"Property field not found in metric: {property_fields}"
+                    logger.error(message)
+                    raise KeyError(message)
+
+                new_fields[property] = property_value
+
+            if new_fields:
+                return new_fields
+            else:
+                return None
+
+        for i, metric in enumerate(metrics):
+
+            new_properties = build_properties(self.property_recipes, metric)
+            if new_properties:
+                metrics[i] = metric | new_properties
 
         return metrics
