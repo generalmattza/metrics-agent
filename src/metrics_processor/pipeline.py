@@ -548,7 +548,8 @@ class PropertyConstructor(MetricsPipeline):
 
     def __init__(self, config=None) -> None:
         super().__init__(config=config)
-        self.property_recipes = self.config["property_recipes"]
+        self.property_recipes = self.config.get("property_recipes")
+        self.property_group = self.config.get("property_group")
 
     def process_method(self, metrics):
 
@@ -584,10 +585,21 @@ class PropertyConstructor(MetricsPipeline):
             else:
                 return None
 
+        if not self.property_recipes:
+            logger.warning(
+                f"No property recipes specified for {self.__class__.__name__}. Continuing without modification"
+            )
+            return metrics
+
         for i, metric in enumerate(metrics):
 
             new_properties = build_properties(self.property_recipes, metric)
             if new_properties:
-                metrics[i] = metric | new_properties
+                if self.property_group:
+                    metrics[i][self.property_group] = (
+                        metric[self.property_group] | new_properties
+                    )
+                else:
+                    metrics[i] = metric | new_properties
 
         return metrics
