@@ -306,10 +306,18 @@ class TimeLocalizer(MetricsPipeline):
 
 
 class TimePrecision(MetricsPipeline):
-
+    # NOTE that this pipeline implements a quick fix to an issue with RTC timestamps
+    # It should be removed for future versions
     def process_method(self, metrics):
+        current_time = int(time.time())
         for metric in metrics:
-            metric["time"] = int(metric["time"])
+            metric_time = int(metric["time"])
+            if metric_time > current_time + 60:
+                metric["time"] = (
+                    current_time  # Set to current time if it's ahead by more than a minute
+                )
+            else:
+                metric["time"] = metric_time
         return metrics
 
 
