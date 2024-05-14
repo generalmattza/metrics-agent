@@ -341,7 +341,7 @@ class Formatter(MetricsPipeline):
     def format_metrics(self, metrics, formats):
 
         for metric in metrics:
-            if len(metric["fields"]) == 1:
+            if len(metric["fields"]) >= 1:
                 logging.error("Metric has more than one field. Run FieldExpander before Formatter", extra={"metric": metric})
                 raise ValueError("Metric has more than one field. Run FieldExpander before Formatter")
 
