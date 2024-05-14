@@ -341,21 +341,24 @@ class Formatter(MetricsPipeline):
     def format_metrics(self, metrics, formats):
 
         for metric in metrics:
-            for k, _ in metric["fields"].items():
+            if len(metric["fields"]) == 1:
+                logging.error("Metric has more than one field. Run FieldExpander before Formatter", extra={"metric": metric})
+                raise ValueError("Metric has more than one field. Run FieldExpander before Formatter")
 
-                try:
-                    format = formats[k]
-                except KeyError:
-                    # No format specified for key, continue
-                    continue
-
+            try:
+                metric_id = metric["tags"]["id"]
+                format = formats[metric_id]
+            except KeyError:
+                # No format specified for key, continue
+                continue
+            for k, _ in metric["fields"].items(): #Must iterate through fields dict, despite only one field
                 if format["type"] == "float":
                     metric["fields"][k] = float(metric["fields"][k])
                 elif format["type"] == "str":
                     metric["fields"][k] = str(metric["fields"][k])
                 else:
                     logger.debug(
-                        f"Metric:{metric['fields'][k]} - Type not specified in metric format, defaulting to str"
+                        f"Metric:{metric['fields'][k]} - Type not specified in metric format, defaulting to str", extra={"metric": metric}
                     )
                     metric["fields"][k] = str(metric["fields"][k])
 
@@ -364,6 +367,30 @@ class Formatter(MetricsPipeline):
                 except KeyError:
                     # No additonal tags have been specified for metric, continue
                     pass
+        # for metric in metrics:
+        #     for k, _ in metric["fields"].items():
+
+        #         try:
+        #             format = formats[k]
+        #         except KeyError:
+        #             # No format specified for key, continue
+        #             continue
+
+        #         if format["type"] == "float":
+        #             metric["fields"][k] = float(metric["fields"][k])
+        #         elif format["type"] == "str":
+        #             metric["fields"][k] = str(metric["fields"][k])
+        #         else:
+        #             logger.debug(
+        #                 f"Metric:{metric['fields'][k]} - Type not specified in metric format, defaulting to str"
+        #             )
+        #             metric["fields"][k] = str(metric["fields"][k])
+
+        #         try:
+        #             metric["tags"] = metric["tags"] | format["tags"]
+        #         except KeyError:
+        #             # No additonal tags have been specified for metric, continue
+        #             pass
 
         return metrics
 

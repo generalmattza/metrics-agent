@@ -1,3 +1,10 @@
+#id:
+#  type: int
+#  tags:
+#    type_measure: stuff
+#    type_hardware: widget
+#    location: somewhere
+
 top_PID:
   type: float
   tags:
