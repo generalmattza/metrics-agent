@@ -15,13 +15,13 @@ from metrics_processor import MetricsProcessor
 from metrics_processor.pipeline import (
     JSONReader,
     PropertyConstructor,
-    Formatter,
     TimeLocalizer,
-    FieldExpander,
     TimePrecision,
+    FieldExpander,
+    Formatter,
+    PropertyConstructor,
     OutlierRemover,
     PropertyMapper,
-    BinaryOperations,
 )
 from metrics_processor import load_config
 

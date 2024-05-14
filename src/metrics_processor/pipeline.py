@@ -16,6 +16,7 @@ import yaml
 import pytz
 import logging
 import time
+import re
 
 from prometheus_client import Histogram, Counter
 
@@ -346,11 +347,24 @@ class Formatter(MetricsPipeline):
                 raise ValueError("Metric has more than one field. Run FieldExpander before Formatter")
 
             try:
+                format = None
                 metric_id = metric["tags"]["id"]
+                # First try find a direct match
                 format = formats[metric_id]
             except KeyError:
-                # No format specified for key, continue
-                continue
+                # Exact match not found.
+                # Next iterate through all formats and use regex.compile to match each to the metric_id
+                for key, value in formats.items():
+                    if re.compile(key).match(metric_id):
+                        format = value
+                        logger.debug(
+                            f"Format applied for metric: {metric_id}", extra={"metric": metric, "format": format}
+                        )
+                        break
+                if format is None:
+                    # Continue to next metric if no format is found
+                    continue
+
             for k, _ in metric["fields"].items(): #Must iterate through fields dict, despite only one field
                 if format["type"] == "float":
                     metric["fields"][k] = float(metric["fields"][k])
@@ -367,6 +381,7 @@ class Formatter(MetricsPipeline):
                 except KeyError:
                     # No additonal tags have been specified for metric, continue
                     pass
+                
         # for metric in metrics:
         #     for k, _ in metric["fields"].items():
 
