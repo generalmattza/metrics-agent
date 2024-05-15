@@ -273,6 +273,8 @@ class JSONReader(MetricsPipeline):
 
 
 class ExtraTagger(MetricsPipeline):
+    # NOTE This pipeline is deprecated by Formatter
+    # Use a formatter configuration with wildcards to add tags
 
     def process_method(self, metrics):
 
@@ -332,106 +334,191 @@ class FieldExpander(MetricsPipeline):
 class Formatter(MetricsPipeline):
 
     def process_method(self, metrics):
-
         formats = load_yaml_file(self.config["formats_filepath"])
+        formats_compiled = self.precompile_regex_keys(formats)
+        combine_formats = self.config.get("combine_formats", False)
 
-        metrics = self.format_metrics(metrics, formats)
+        metrics = self.format_metrics(
+            metrics, formats, formats_compiled, combine_formats
+        )
 
         return metrics
 
-    def format_metrics(self, metrics, formats):
+    def precompile_regex_keys(self, formats):
+        return {key: re.compile(key) for key in formats.keys()}
 
-        def precompile_regex_keys(dict_):
-            return {key: re.compile(key) for key in dict_.keys()}
+    def check_metric_fields_length(self, metric):
+        if len(metric["fields"]) > 1:
+            logging.error(
+                "Metric has more than one field. Run FieldExpander before Formatter",
+                extra={"metric": metric},
+            )
+            raise ValueError(
+                "Metric has more than one field. Run FieldExpander before Formatter"
+            )
 
-        def check_metric_fields_length(metric):
-            if len(metric["fields"]) > 1:
-                logging.error(
-                    "Metric has more than one field. Run FieldExpander before Formatter",
-                    extra={"metric": metric},
-                )
-                raise ValueError(
-                    "Metric has more than one field. Run FieldExpander before Formatter"
-                )
+    def get_metric_id(self, metric):
+        return metric["tags"].get("id", next(iter(metric["fields"])))
 
-        def get_metric_id(metric):
-            try:
-                return metric["tags"]["id"]
-            except KeyError:
-                # If metric id is not defined, use the first field key as the id
-                return next(iter(metric["fields"]))
+    def build_metric_format(
+        self, formats, formats_compiled, metric_id, combine_formats
+    ):
+        # First try to find a direct match
+        format = formats.get(metric_id, {})
 
-        def build_metric_format(formats, metric_id, combine_formats=False):
-
-            # First try find a direct match
-            format = formats.get(metric_id, {})
-
-            if format and not combine_formats:
-                return format
-
-            # If exact match was not found OR combine_formats is set, iterate through all formats and use regex.compile to match each to the metric_id.
-            # If combine_formats is False, the first format that matches will be applied
-            # If combine_formats is True, all formats that match will be merged
-            for key in formats:
-                if formats_compiled[key].match(metric_id):
-                    if not combine_formats:
-                        # Apply the first format that matches
-                        format = formats[key]
-                        logger.debug(
-                            f"Format applied for metric: {metric_id}",
-                            extra={"metric": metric, "format": format},
-                        )
-                        return format
-                    else:
-                        # Merge all formats that match
-                        # Priority is given to the first format that is applied
-                        format = {**format, **formats[key]}
-                        logger.debug(
-                            f"Format applied for metric: {metric_id}",
-                            extra={"metric": metric, "format": format},
-                        )
+        if format and not combine_formats:
             return format
 
-        # precompile regex lookups for formats to improve performance
-        formats_compiled = precompile_regex_keys(formats)
+        # Iterate through all formats and use regex to match each to the metric_id
+        for key, regex in formats_compiled.items():
+            if regex.match(metric_id):
+                if not combine_formats:
+                    return formats[key]
+                else:
+                    # Merge all matching formats
+                    format.update(formats[key])
+        return format
 
+    def format_metrics(self, metrics, formats, formats_compiled, combine_formats):
         for metric in metrics:
+            self.check_metric_fields_length(metric)
 
-            check_metric_fields_length(metric)
+            metric_id = self.get_metric_id(metric)
+            format = self.build_metric_format(
+                formats, formats_compiled, metric_id, combine_formats
+            )
 
-            metric_id = get_metric_id(metric)
-
-            format = build_metric_format(formats, metric_id, combine_formats=self.config.get("combine_formats", False))
-
-            # Check to see that a suitable format has been found
             if not format:
-                logger.debug(
+                logging.debug(
                     f"No format found for metric: {metric_id}",
                     extra={"metric": metric},
                 )
                 continue
 
-            for k, _ in metric[
-                "fields"
-            ].items():  # Must iterate through fields dict, despite only one field
-                if format["type"] == "float":
-                    metric["fields"][k] = float(metric["fields"][k])
-                elif format["type"] == "str":
-                    metric["fields"][k] = str(metric["fields"][k])
-                else:
-                    logger.debug(
-                        f"Metric:{metric['fields'][k]} - Type not specified in metric format, defaulting to str",
-                        extra={"metric": metric},
-                    )
-                    metric["fields"][k] = str(metric["fields"][k])
+            field_key = next(iter(metric["fields"]))  # There is only one field
+            field_value = metric["fields"][field_key]
 
-                try:
-                    metric["tags"] = metric["tags"] | format["tags"]
-                except KeyError:
-                    # No additonal tags have been specified for metric, continue
-                    pass
+            if format.get("type") == "float":
+                metric["fields"][field_key] = float(field_value)
+            elif format.get("type") == "str":
+                metric["fields"][field_key] = str(field_value)
+            else:
+                logging.debug(
+                    f"Metric:{field_value} - Type not specified in metric format, defaulting to str",
+                    extra={"metric": metric},
+                )
+                metric["fields"][field_key] = str(field_value)
+
+            # Update tags if format contains tags
+            if "tags" in format:
+                metric["tags"].update(format["tags"])
 
         return metrics
+
+
+# class Formatter(MetricsPipeline):
+
+#     def process_method(self, metrics):
+
+#         formats = load_yaml_file(self.config["formats_filepath"])
+
+#         metrics = self.format_metrics(metrics, formats)
+
+#         return metrics
+
+#     def format_metrics(self, metrics, formats):
+
+#         def precompile_regex_keys(dict_):
+#             return {key: re.compile(key) for key in dict_.keys()}
+
+#         def check_metric_fields_length(metric):
+#             if len(metric["fields"]) > 1:
+#                 logging.error(
+#                     "Metric has more than one field. Run FieldExpander before Formatter",
+#                     extra={"metric": metric},
+#                 )
+#                 raise ValueError(
+#                     "Metric has more than one field. Run FieldExpander before Formatter"
+#                 )
+
+#         def get_metric_id(metric):
+#             try:
+#                 return metric["tags"]["id"]
+#             except KeyError:
+#                 # If metric id is not defined, use the first field key as the id
+#                 return next(iter(metric["fields"]))
+
+#         def build_metric_format(formats, metric_id, combine_formats=False):
+
+#             # First try find a direct match
+#             format = formats.get(metric_id, {})
+
+#             if format and not combine_formats:
+#                 return format
+
+#             # If exact match was not found OR combine_formats is set, iterate through all formats and use regex.compile to match each to the metric_id.
+#             # If combine_formats is False, the first format that matches will be applied
+#             # If combine_formats is True, all formats that match will be merged
+#             for key in formats:
+#                 if formats_compiled[key].match(metric_id):
+#                     if not combine_formats:
+#                         # Apply the first format that matches
+#                         format = formats[key]
+#                         logger.debug(
+#                             f"Format applied for metric: {metric_id}",
+#                             extra={"metric": metric, "format": format},
+#                         )
+#                         return format
+#                     else:
+#                         # Merge all formats that match
+#                         # Priority is given to the first format that is applied
+#                         format = {**format, **formats[key]}
+#                         logger.debug(
+#                             f"Format applied for metric: {metric_id}",
+#                             extra={"metric": metric, "format": format},
+#                         )
+#             return format
+
+#         # precompile regex lookups for formats to improve performance
+#         formats_compiled = precompile_regex_keys(formats)
+
+#         for metric in metrics:
+
+#             check_metric_fields_length(metric)
+
+#             metric_id = get_metric_id(metric)
+
+#             format = build_metric_format(formats, metric_id, combine_formats=self.config.get("combine_formats", False))
+
+#             # Check to see that a suitable format has been found
+#             if not format:
+#                 logger.debug(
+#                     f"No format found for metric: {metric_id}",
+#                     extra={"metric": metric},
+#                 )
+#                 continue
+
+#             for k, _ in metric[
+#                 "fields"
+#             ].items():  # Must iterate through fields dict, despite only one field
+#                 if format["type"] == "float":
+#                     metric["fields"][k] = float(metric["fields"][k])
+#                 elif format["type"] == "str":
+#                     metric["fields"][k] = str(metric["fields"][k])
+#                 else:
+#                     logger.debug(
+#                         f"Metric:{metric['fields'][k]} - Type not specified in metric format, defaulting to str",
+#                         extra={"metric": metric},
+#                     )
+#                     metric["fields"][k] = str(metric["fields"][k])
+
+#                 try:
+#                     metric["tags"] = metric["tags"] | format["tags"]
+#                 except KeyError:
+#                     # No additonal tags have been specified for metric, continue
+#                     pass
+
+#         return metrics
 
 
 class PropertyMapper(MetricsPipeline):
