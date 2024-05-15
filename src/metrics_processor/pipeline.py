@@ -341,9 +341,10 @@ class Formatter(MetricsPipeline):
 
     def format_metrics(self, metrics, formats):
 
-        formats_compiled = {key: re.compile(key) for key, _ in formats.items()}
+        def precompile_regex_keys(dict_):
+            return {key: re.compile(key) for key in dict_.keys()}
 
-        for metric in metrics:
+        def check_metric_fields_length(metric):
             if len(metric["fields"]) > 1:
                 logging.error(
                     "Metric has more than one field. Run FieldExpander before Formatter",
@@ -353,29 +354,62 @@ class Formatter(MetricsPipeline):
                     "Metric has more than one field. Run FieldExpander before Formatter"
                 )
 
-            format = None
+        def get_metric_id(metric):
             try:
-                metric_id = metric["tags"]["id"]
+                return metric["tags"]["id"]
             except KeyError:
                 # If metric id is not defined, use the first field key as the id
-                metric_id = metric["fields"].items().pop()
-            try:
-                # First try find a direct match
-                format = formats[metric_id]
-            except KeyError:
-                # If exact match was not found, so iterate through all formats and use regex.compile to match each to the metric_id
-                for key, format_compile in zip(formats, formats_compiled):
-                    if format_compile.match(metric_id):
+                return next(iter(metric["fields"]))
+
+        def build_metric_format(formats, metric_id, combine_formats=False):
+
+            # First try find a direct match
+            format = formats.get(metric_id, {})
+
+            if format and not combine_formats:
+                return format
+
+            # If exact match was not found OR combine_formats is set, iterate through all formats and use regex.compile to match each to the metric_id.
+            # If combine_formats is False, the first format that matches will be applied
+            # If combine_formats is True, all formats that match will be merged
+            for key in formats:
+                if formats_compiled[key].match(metric_id):
+                    if not combine_formats:
                         # Apply the first format that matches
                         format = formats[key]
                         logger.debug(
                             f"Format applied for metric: {metric_id}",
                             extra={"metric": metric, "format": format},
                         )
-                        break
-                if format is None:
-                    # Continue to next metric if no format is found
-                    continue
+                        return format
+                    else:
+                        # Merge all formats that match
+                        # Priority is given to the first format that is applied
+                        format = {**format, **formats[key]}
+                        logger.debug(
+                            f"Format applied for metric: {metric_id}",
+                            extra={"metric": metric, "format": format},
+                        )
+            return format
+
+        # precompile regex lookups for formats to improve performance
+        formats_compiled = precompile_regex_keys(formats)
+
+        for metric in metrics:
+
+            check_metric_fields_length(metric)
+
+            metric_id = get_metric_id(metric)
+
+            format = build_metric_format(formats, metric_id, combine_formats=self.config.get("combine_formats", False))
+
+            # Check to see that a suitable format has been found
+            if not format:
+                logger.debug(
+                    f"No format found for metric: {metric_id}",
+                    extra={"metric": metric},
+                )
+                continue
 
             for k, _ in metric[
                 "fields"

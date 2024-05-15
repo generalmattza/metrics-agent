@@ -14,7 +14,7 @@ update_interval = 60
 
 # For testing
 [mqtt.client]
-name = "mqtt-client-metrics-manager-latest"
+name = "mqtt-client-testing"
 node_id = "metrics_manager_pzero"
 subscribe_topics = ["prototype-zero/#"]
 subscribe_qos = 0
@@ -26,6 +26,6 @@ port = 1_883
 timeout = 5
 
 [mqtt.node_network]
-topic_structure = "machine/module/measurement/field*"
+topic_structure = "machine/level/category/module/measurement/field*"
 enable_prometheus_server = false
 prometheus_port = 8_000

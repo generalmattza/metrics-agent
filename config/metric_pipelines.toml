@@ -10,6 +10,7 @@ testbed = "PZero"
 
 [Formatter]
 formats_filepath = "config/metric_format.yaml"
+combine_formats = true
 
 [OutlierRemover]
 boundaries_filepath = "config/metric_boundaries.yaml"

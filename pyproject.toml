@@ -38,7 +38,7 @@ version = { attr = "metrics_processor.__version__" }
 [project.optional-dependencies]
 test = [
   "pytest >= 8.0.0",
-  "mqtt-node-network @ git+https://github.com/generalmattza/mqtt-node-network.git@v1.2.0",
+  "mqtt-node-network @ git+https://github.com/generalmattza/mqtt-node-network.git@v1.3.1",
 ]
 
 [project.urls]
