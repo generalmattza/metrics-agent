@@ -14,6 +14,7 @@ combine_formats = true
 
 [OutlierRemover]
 boundaries_filepath = "config/metric_boundaries.yaml"
+combine_boundaries = true
 
 [PropertyMapper]
 property_mapping_filepath = "config/property_mapping.yaml"
