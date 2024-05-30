@@ -438,10 +438,13 @@ class PropertyMapper(MetricsPipeline):
             for property, values in metric.items():
                 if property in self.property_mapping:
                     # Map each property using the preloaded mapping
-                    new_values = {
-                        self.property_mapping[property].get(p, p): values[p]
-                        for p in values
-                    }
+                    if isinstance(values, (dict, list, tuple)):
+                        new_values = {
+                            self.property_mapping[property].get(p, p): values[p]
+                            for p in values
+                        }
+                    elif isinstance(values, str):
+                        new_values = self.property_mapping[property].get(values, values)
                     new_metric[property] = new_values
                 else:
                     new_metric[property] = values
@@ -694,11 +697,13 @@ class PropertyConstructor(MetricsPipeline):
         for i, metric in enumerate(metrics):
 
             new_properties = build_properties(self.property_recipes, metric)
+            # Note this will only work for creating property groups that are dictionaries
+            # Other types are not considered
             if new_properties:
                 if self.property_group:
-                    metrics[i][self.property_group] = (
-                        metric[self.property_group] | new_properties
-                    )
+                    # Catch the case where the property group is None
+                    property_group = metric.get(self.property_group) or {}
+                    metrics[i][self.property_group] = property_group | new_properties
                 else:
                     metrics[i] = metric | new_properties
 
