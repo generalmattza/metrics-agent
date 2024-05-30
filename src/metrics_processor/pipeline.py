@@ -143,6 +143,27 @@ def get_metric_id(metric):
     return metric["tags"].get("id", next(iter(metric["fields"])))
 
 
+def deep_merge(dict1, dict2):
+    """
+    Recursively merge two dictionaries.
+
+    :param dict1: The first dictionary.
+    :param dict2: The second dictionary, whose values will overwrite those in dict1 in case of conflicts.
+    :return: A new dictionary that is the result of deeply merging dict2 into dict1.
+    """
+    merged = dict1.copy()  # Create a copy of dict1 to avoid mutating it
+
+    for key, value in dict2.items():
+        if key in merged and isinstance(merged[key], dict) and isinstance(value, dict):
+            # If the key exists in both dictionaries and both values are dicts, merge them recursively
+            merged[key] = deep_merge(merged[key], value)
+        else:
+            # Otherwise, set or overwrite the value in the merged dictionary
+            merged[key] = value
+
+    return merged
+
+
 def build_metric_format(formats, formats_compiled, metric_id, combine=False):
     # First try to find a direct match
     format = formats.get(metric_id, {})
@@ -157,7 +178,7 @@ def build_metric_format(formats, formats_compiled, metric_id, combine=False):
                 return formats[key]
             else:
                 # Merge all matching formats
-                format.update(formats[key])
+                format = deep_merge(formats[key], format)
     return format
 
 
@@ -411,7 +432,7 @@ class Formatter(MetricsPipeline):
 
             # Update tags if format contains tags
             if "tags" in format:
-                metric["tags"].update(format["tags"])
+                metric["tags"] = deep_merge(metric["tags"], format["tags"])
 
         return metrics
 
